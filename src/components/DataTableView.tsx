@@ -33,6 +33,7 @@ interface DataTableViewProps {
   dateRangeColumn?: string;
   boqItems?: BOQItem[];
   onChanged: () => void;
+  autoFillOptions?: Record<string, string[]>;
 }
 
 function statusColor(status: string): string {
@@ -184,7 +185,7 @@ function renderCell(value: any, col: ColumnDef): React.ReactNode {
 }
 
 export function DataTableView({
-  tableName, title, icon: Icon, data, columns, filters, projects, showProjectFilter, dateRangeColumn, boqItems, onChanged,
+  tableName, title, icon: Icon, data, columns, filters, projects, showProjectFilter, dateRangeColumn, boqItems, onChanged, autoFillOptions,
 }: DataTableViewProps) {
   const [search, setSearch] = useState('');
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
@@ -233,6 +234,23 @@ export function DataTableView({
     return result;
   }, [data, search, filterValues, projectFilter, columns, showProjectFilter, dateRangeColumn, dateFrom, dateTo]);
 
+  const displayData: Record<string, any>[] = useMemo(() => {
+    if (tableName === 'labor_duty') {
+      return filtered.map((r) => ({
+        ...r,
+        total_hours: r.total_hours ?? Math.round(((Number(r.no_of_workers) || 0) * (Number(r.hours_per_day) || 0) * (Number(r.days) || 0)) * 100) / 100,
+        amount: r.amount ?? Math.round((((Number(r.no_of_workers) || 0) * (Number(r.hours_per_day) || 0) * (Number(r.days) || 0)) * (Number(r.rate_per_hour) || 0)) * 100) / 100,
+      }));
+    }
+    if (tableName === 'equipment') {
+      return filtered.map((r) => ({
+        ...r,
+        amount: r.amount ?? Math.round(((Number(r.quantity) || 0) * (Number(r.unit_rate) || 0)) * 100) / 100,
+      }));
+    }
+    return filtered;
+  }, [filtered, tableName]);
+
   const projectMap = useMemo(() => {
     const m: Record<string, string> = {};
     projects.forEach((p) => { m[p.id] = p.name; });
@@ -265,6 +283,24 @@ export function DataTableView({
         out[key] = val;
       }
     }
+    if (tableName === 'labor_duty') {
+      const nw = Number(out.no_of_workers) || 0;
+      const hpd = Number(out.hours_per_day) || 0;
+      const d = Number(out.days) || 0;
+      const rph = Number(out.rate_per_hour) || 0;
+      out.total_hours = Math.round(nw * hpd * d * 100) / 100;
+      out.amount = Math.round(out.total_hours * rph * 100) / 100;
+    }
+    if (tableName === 'equipment') {
+      const qty = Number(out.quantity) || 0;
+      const ur = Number(out.unit_rate) || 0;
+      out.amount = Math.round(qty * ur * 100) / 100;
+    }
+    if (tableName === 'subcontractor_invoices' || tableName === 'client_invoices') {
+      const qty = Number(out.quantity) || 0;
+      const ur = Number(out.unit_rate) || 0;
+      if (qty && ur) out.amount = Math.round(qty * ur * 100) / 100;
+    }
     return out;
   }
 
@@ -276,14 +312,38 @@ export function DataTableView({
     const match = boqItems.find((b) => b.item_code === itemCode || b.id === itemCode);
     if (!match) return;
     const updates: Record<string, any> = { ...row };
-    if (columns.find((c) => c.key === 'item_name' && !c.editable)) updates.item_name = match.item_name || match.description || '';
-    if (columns.find((c) => c.key === 'boq_item_name' && !c.editable)) updates.boq_item_name = match.item_name || match.description || '';
-    if (columns.find((c) => c.key === 'item_description' && !c.editable)) updates.item_description = match.description || '';
-    if (columns.find((c) => c.key === 'unit' && !c.editable)) updates.unit = match.unit || '';
-    if (columns.find((c) => c.key === 'quantity' && !c.editable)) updates.quantity = match.quantity || 0;
-    if (columns.find((c) => c.key === 'unit_price' && !c.editable)) updates.unit_price = match.unit_rate || 0;
-    if (columns.find((c) => c.key === 'boq_code' && !c.editable)) updates.boq_code = match.boq_code || '';
-    if (columns.find((c) => c.key === 'project_code' && !c.editable)) updates.project_code = match.project_code || '';
+    const trySet = (key: string, val: any) => {
+      const c = columns.find((c) => c.key === key);
+      if (c && !c.editable) updates[key] = val;
+    };
+    trySet('item_name', match.item_name || match.description || '');
+    trySet('boq_item_name', match.item_name || match.description || '');
+    trySet('item_desc', match.item_name || match.description || '');
+    trySet('item_description', match.description || '');
+    trySet('unit', match.unit || '');
+    trySet('quantity', match.quantity || 0);
+    trySet('unit_rate', match.unit_rate || 0);
+    trySet('unit_price', match.unit_rate || 0);
+    trySet('boq_code', match.boq_code || '');
+    trySet('project_code', match.project_code || '');
+    if (!updates.amount && (updates.quantity || updates.unit_rate)) {
+      updates.amount = (Number(updates.quantity) || 0) * (Number(updates.unit_rate) || 0);
+    }
+    setRow(updates);
+  }
+
+  function autoFillFromData(row: Record<string, any>, setRow: (r: Record<string, any>) => void, changedKey: string) {
+    if (!autoFillOptions || !autoFillOptions[changedKey]) return;
+    const selected = row[changedKey];
+    if (!selected) return;
+    const match = data.find((r) => r[changedKey] === selected);
+    if (!match) return;
+    const updates: Record<string, any> = { ...row };
+    const trySet = (key: string) => {
+      const c = columns.find((c) => c.key === key);
+      if (c && !c.editable && match[key] !== undefined) updates[key] = match[key];
+    };
+    columns.forEach((c) => { if (c.key !== changedKey && c.key !== 'id' && c.key !== 'created_at') trySet(c.key); });
     setRow(updates);
   }
 
@@ -487,6 +547,7 @@ export function DataTableView({
               const updated = { ...row, [col.key]: e.target.value };
               setRow(updated);
               autoFillFromBOQItems(updated, setRow, col.key);
+              autoFillFromData(updated, setRow, col.key);
             }}
             className="w-full appearance-none text-sm px-3 py-2 pr-9 border border-neutral-200 rounded-lg focus:outline-none focus:border-primary-400"
           >
@@ -494,6 +555,27 @@ export function DataTableView({
             {col.key === 'project_id'
               ? projects.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))
               : col.options.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
+          </select>
+          <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+        </div>
+      );
+    }
+
+    if (autoFillOptions && autoFillOptions[col.key] && autoFillOptions[col.key].length > 0) {
+      const opts = autoFillOptions[col.key];
+      return (
+        <div className="relative">
+          <select
+            value={row[col.key] || ''}
+            onChange={(e) => {
+              const updated = { ...row, [col.key]: e.target.value };
+              setRow(updated);
+              autoFillFromData(updated, setRow, col.key);
+            }}
+            className="w-full appearance-none text-sm px-3 py-2 pr-9 border border-neutral-200 rounded-lg focus:outline-none focus:border-primary-400"
+          >
+            <option value="">Select...</option>
+            {opts.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
           </select>
           <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
         </div>
@@ -543,6 +625,30 @@ export function DataTableView({
     );
   }
 
+  const [dragState, setDragState] = useState<{ modal: 'add' | 'edit' | null; offsetX: number; offsetY: number; x: number; y: number }>({ modal: null, offsetX: 0, offsetY: 0, x: 0, y: 0 });
+
+  function startDrag(modal: 'add' | 'edit', e: React.MouseEvent) {
+    const target = e.currentTarget as HTMLElement;
+    const modalEl = target.closest('[data-draggable]') as HTMLElement;
+    if (!modalEl) return;
+    const modalRect = modalEl.getBoundingClientRect();
+    setDragState({ modal, offsetX: e.clientX - modalRect.left, offsetY: e.clientY - modalRect.top, x: modalRect.left, y: modalRect.top });
+  }
+
+  useEffect(() => {
+    if (!dragState.modal) return;
+    function handleMove(e: MouseEvent) {
+      setDragState((prev) => prev.modal ? { ...prev, x: e.clientX - prev.offsetX, y: e.clientY - prev.offsetY } : prev);
+    }
+    function handleUp() { setDragState((prev) => ({ ...prev, modal: null })); }
+    window.addEventListener('mousemove', handleMove);
+    window.addEventListener('mouseup', handleUp);
+    return () => { window.removeEventListener('mousemove', handleMove); window.removeEventListener('mouseup', handleUp); };
+  }, [dragState.modal]);
+
+  const addModalStyle = dragState.modal === 'add' ? { position: 'fixed' as const, left: `${dragState.x}px`, top: `${dragState.y}px`, margin: 0 } : {};
+  const editModalStyle = dragState.modal === 'edit' ? { position: 'fixed' as const, left: `${dragState.x}px`, top: `${dragState.y}px`, margin: 0 } : {};
+
   return (
     <div className="flex-1 flex flex-col overflow-hidden bg-neutral-50">
       <div className="p-6 max-w-7xl mx-auto w-full flex-1 flex flex-col overflow-hidden animate-fade-in">
@@ -554,7 +660,7 @@ export function DataTableView({
             </div>
             <div>
               <h2 className="text-xl font-bold text-neutral-900">{title}</h2>
-              <p className="text-sm text-neutral-500">{filtered.length} record{filtered.length !== 1 ? 's' : ''}</p>
+              <p className="text-sm text-neutral-500">{displayData.length} record{displayData.length !== 1 ? 's' : ''}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -681,14 +787,14 @@ export function DataTableView({
                 </tr>
               </thead>
               <tbody>
-                {filtered.length === 0 ? (
+                {displayData.length === 0 ? (
                   <tr>
                     <td colSpan={columns.length + (showProjectFilter ? 2 : 1)} className="text-center text-sm text-neutral-400 py-12">
                       No records found. {data.length === 0 ? 'Click "Add New" to create the first record.' : 'Try adjusting your filters.'}
                     </td>
                   </tr>
                 ) : (
-                  filtered.map((row) => (
+                  displayData.map((row) => (
                     <tr key={row.id} className="border-b border-neutral-200">
                       {showProjectFilter && (
                         <td className="px-2 py-1.5 text-sm text-neutral-600 whitespace-nowrap border border-neutral-200">{projectMap[row.project_id] || '—'}</td>
@@ -700,7 +806,7 @@ export function DataTableView({
                           col={col}
                           isActive={inlineEdit?.id === row.id && inlineEdit?.key === col.key}
                           onClick={() => {
-                            if (col.editable !== false && col.key !== 'id' && col.key !== 'created_at') {
+                            if (col.editable === true && col.key !== 'id' && col.key !== 'created_at') {
                               startInlineEdit(row.id, col.key, row[col.key]);
                             }
                           }}
@@ -734,8 +840,8 @@ export function DataTableView({
       {/* Add Modal */}
       {showAdd && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 animate-fade-in" onClick={() => setShowAdd(false)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-auto scrollbar-thin p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
+          <div data-draggable className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-auto scrollbar-thin p-6" style={addModalStyle} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4 cursor-move select-none" onMouseDown={(e) => startDrag('add', e)}>
               <h3 className="text-lg font-semibold text-neutral-900">Add {title}</h3>
               <button onClick={() => setShowAdd(false)} className="text-neutral-400 hover:text-neutral-600"><X size={20} /></button>
             </div>
@@ -760,8 +866,8 @@ export function DataTableView({
       {/* Edit Modal */}
       {editingId && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 animate-fade-in" onClick={() => setEditingId(null)}>
-          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-auto scrollbar-thin p-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
+          <div data-draggable className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-auto scrollbar-thin p-6" style={editModalStyle} onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4 cursor-move select-none" onMouseDown={(e) => startDrag('edit', e)}>
               <h3 className="text-lg font-semibold text-neutral-900">Edit {title}</h3>
               <button onClick={() => setEditingId(null)} className="text-neutral-400 hover:text-neutral-600"><X size={20} /></button>
             </div>

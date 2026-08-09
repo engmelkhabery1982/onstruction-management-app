@@ -3,7 +3,7 @@ import { supabase } from '@/lib/supabase';
 import type {
   Project, Task, Cost, CostEntry, Procurement, Safety, ProgressEntry,
   Schedule, Contract, BOQHeader, BOQItem, CashFlowEntry, SubcontractorInvoice,
-  ClientInvoice, Variation, DocumentEntry, WIREntry,
+  ClientInvoice, Variation, DocumentEntry, WIREntry, LaborDuty, Equipment, TrackingSheet,
 } from '@/types';
 
 export function useData() {
@@ -24,12 +24,15 @@ export function useData() {
   const [variations, setVariations] = useState<Variation[]>([]);
   const [documents, setDocuments] = useState<DocumentEntry[]>([]);
   const [wirEntries, setWirEntries] = useState<WIREntry[]>([]);
+  const [laborDuty, setLaborDuty] = useState<LaborDuty[]>([]);
+  const [equipment, setEquipment] = useState<Equipment[]>([]);
+  const [tracking, setTracking] = useState<TrackingSheet[]>([]);
   const [loading, setLoading] = useState(true);
 
   const loadAll = useCallback(async () => {
     setLoading(true);
     const [
-      p, t, c, ce, pr, s, pg, sc, ct, bh, bq, cf, si, ci, va, dc, wr,
+      p, t, c, ce, pr, s, pg, sc, ct, bh, bq, cf, si, ci, va, dc, wr, ld, eq, tr,
     ] = await Promise.all([
       supabase.from('projects').select('*').order('created_at', { ascending: false }),
       supabase.from('tasks').select('*').order('created_at', { ascending: false }),
@@ -48,6 +51,9 @@ export function useData() {
       supabase.from('variations').select('*').order('created_at', { ascending: false }),
       supabase.from('documents').select('*').order('created_at', { ascending: false }),
       supabase.from('wir_entries').select('*').order('created_at', { ascending: false }),
+      supabase.from('labor_duty').select('*').order('created_at', { ascending: false }),
+      supabase.from('equipment').select('*').order('created_at', { ascending: false }),
+      supabase.from('tracking_sheet').select('*').order('created_at', { ascending: false }),
     ]);
 
     setProjects(p.data || []);
@@ -67,6 +73,9 @@ export function useData() {
     setVariations(va.data || []);
     setDocuments(dc.data || []);
     setWirEntries(wr.data || []);
+    setLaborDuty(ld.data || []);
+    setEquipment(eq.data || []);
+    setTracking(tr.data || []);
     setLoading(false);
   }, []);
 
@@ -74,6 +83,6 @@ export function useData() {
   return {
     projects, tasks, costs, costEntries, procurement, safety, progress, schedules,
     contracts, boqHeaders, boqItems, cashFlow, subInvoices, clientInvoices, variations,
-    documents, wirEntries, loading, reload: loadAll,
+    documents, wirEntries, laborDuty, equipment, tracking, loading, reload: loadAll,
   };
 }

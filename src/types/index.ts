@@ -211,6 +211,12 @@ export interface SubcontractorInvoice {
   invoice_number: string;
   subcontractor: string;
   boq_reference: string;
+  boq_code: string;
+  boq_item_code: string;
+  item_desc: string;
+  unit: string;
+  quantity: number;
+  unit_rate: number;
   invoice_date: string | null;
   amount: number;
   status: string;
@@ -218,6 +224,7 @@ export interface SubcontractorInvoice {
   payment_date: string | null;
   paid_amount: number;
   notes: string;
+  created_by: string;
   created_at: string;
 }
 
@@ -226,6 +233,12 @@ export interface ClientInvoice {
   project_id: string;
   invoice_number: string;
   client: string;
+  boq_code: string;
+  boq_item_code: string;
+  item_desc: string;
+  unit: string;
+  quantity: number;
+  unit_rate: number;
   invoice_date: string | null;
   due_date: string | null;
   amount: number;
@@ -234,6 +247,52 @@ export interface ClientInvoice {
   payment_date: string | null;
   paid_amount: number;
   notes: string;
+  created_by: string;
+  created_at: string;
+}
+
+export interface LaborDuty {
+  id: string;
+  project_id: string;
+  project_code: string;
+  date: string | null;
+  worker_name: string;
+  role: string;
+  no_of_workers: number;
+  hours_per_day: number;
+  days: number;
+  total_hours: number;
+  rate_per_hour: number;
+  amount: number;
+  notes: string;
+  created_at: string;
+}
+
+export interface Equipment {
+  id: string;
+  project_id: string;
+  project_code: string;
+  date: string | null;
+  equipment_name: string;
+  equipment_type: string;
+  unit: string;
+  quantity: number;
+  unit_rate: number;
+  amount: number;
+  notes: string;
+  created_at: string;
+}
+
+export interface TrackingSheet {
+  id: string;
+  project_id: string;
+  company_name: string;
+  source_type: string;
+  source_id: string;
+  amount: number;
+  status: string;
+  created_by: string;
+  created_time: string;
   created_at: string;
 }
 
@@ -297,4 +356,4 @@ export type ViewKey =
   | 'dashboard' | 'projects' | 'tasks' | 'costs' | 'costEntries'
   | 'procurement' | 'safety' | 'progress' | 'schedule' | 'contracts'
   | 'boq' | 'boqItems' | 'cashflow' | 'subinvoices' | 'clientinvoices'
-  | 'variations' | 'documents' | 'wir';
+  | 'variations' | 'documents' | 'wir' | 'laborDuty' | 'equipment' | 'tracking';

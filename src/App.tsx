@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutDashboard, FolderKanban, SquareCheck as CheckSquare, DollarSign, Package, ShieldAlert, TrendingUp, CalendarClock, Signature as FileSignature, ClipboardList, Banknote, Receipt, FileText, GitBranch, FolderOpen, FileCheck as FileCheck2, Building2, Menu, ListOrdered } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, SquareCheck as CheckSquare, DollarSign, Package, ShieldAlert, TrendingUp, CalendarClock, Signature as FileSignature, ClipboardList, Banknote, Receipt, FileText, GitBranch, FolderOpen, FileCheck as FileCheck2, Building2, Menu, ListOrdered, HardHat, Wrench, ClipboardCheck } from 'lucide-react';
 import { useData } from '@/hooks/useData';
 import { Dashboard } from '@/components/Dashboard';
 import { DataTableView, type ColumnDef, type FilterDef } from '@/components/DataTableView';
@@ -25,6 +25,9 @@ const NAV_ITEMS: { key: ViewKey; label: string; icon: IconType; group: string }[
   { key: 'safety', label: 'Safety', icon: ShieldAlert, group: 'Operations' },
   { key: 'documents', label: 'Documents', icon: FolderOpen, group: 'Operations' },
   { key: 'wir', label: 'WIR', icon: FileCheck2, group: 'Operations' },
+  { key: 'laborDuty', label: 'Labor Duty', icon: HardHat, group: 'Operations' },
+  { key: 'equipment', label: 'Equipment', icon: Wrench, group: 'Operations' },
+  { key: 'tracking', label: 'Tracking Sheet', icon: ClipboardCheck, group: 'Operations' },
 ];
 
 const PROJECT_STATUSES = ['Planning', 'In Progress', 'On Hold', 'Completed', 'Delayed'];
@@ -213,25 +216,36 @@ const CASHFLOW_COLUMNS: ColumnDef[] = [
 const SUBINV_COLUMNS: ColumnDef[] = [
   { key: 'invoice_number', label: 'Invoice #', type: 'text', editable: true },
   { key: 'subcontractor', label: 'Subcontractor', type: 'text', editable: true },
-  { key: 'boq_reference', label: 'BOQ Ref', type: 'text', editable: true },
-  { key: 'invoice_date', label: 'Date', type: 'date', editable: true },
+  { key: 'boq_code', label: 'BOQ Code', type: 'text', editable: true, autoFillFrom: 'boqItems', autoFillKey: 'item_code' },
+  { key: 'boq_item_code', label: 'BOQ Item Code', type: 'text', editable: true, autoFillFrom: 'boqItems', autoFillKey: 'item_code' },
+  { key: 'item_desc', label: 'Item Description', type: 'text' },
+  { key: 'unit', label: 'Unit', type: 'text' },
+  { key: 'quantity', label: 'Quantity', type: 'number', editable: true },
+  { key: 'unit_rate', label: 'Unit Rate', type: 'money', editable: true },
   { key: 'amount', label: 'Amount', type: 'money', editable: true },
-  { key: 'paid_amount', label: 'Paid', type: 'money', editable: true },
+  { key: 'invoice_date', label: 'Date', type: 'date', editable: true },
   { key: 'status', label: 'Status', type: 'status', editable: true, options: INVOICE_STATUSES },
   { key: 'payment_status', label: 'Payment', type: 'status', editable: true, options: PAYMENT_STATUSES },
   { key: 'payment_date', label: 'Payment Date', type: 'date', editable: true },
+  { key: 'notes', label: 'Notes', type: 'text', editable: true },
 ];
 
 const CLIENTINV_COLUMNS: ColumnDef[] = [
   { key: 'invoice_number', label: 'Invoice #', type: 'text', editable: true },
   { key: 'client', label: 'Client', type: 'text', editable: true },
+  { key: 'boq_code', label: 'BOQ Code', type: 'text', editable: true, autoFillFrom: 'boqItems', autoFillKey: 'item_code' },
+  { key: 'boq_item_code', label: 'BOQ Item Code', type: 'text', editable: true, autoFillFrom: 'boqItems', autoFillKey: 'item_code' },
+  { key: 'item_desc', label: 'Item Description', type: 'text' },
+  { key: 'unit', label: 'Unit', type: 'text' },
+  { key: 'quantity', label: 'Quantity', type: 'number', editable: true },
+  { key: 'unit_rate', label: 'Unit Rate', type: 'money', editable: true },
+  { key: 'amount', label: 'Amount', type: 'money', editable: true },
   { key: 'invoice_date', label: 'Date', type: 'date', editable: true },
   { key: 'due_date', label: 'Due Date', type: 'date', editable: true },
-  { key: 'amount', label: 'Amount', type: 'money', editable: true },
-  { key: 'paid_amount', label: 'Paid', type: 'money', editable: true },
   { key: 'status', label: 'Status', type: 'status', editable: true, options: INVOICE_STATUSES },
   { key: 'payment_status', label: 'Payment', type: 'status', editable: true, options: PAYMENT_STATUSES },
   { key: 'payment_date', label: 'Payment Date', type: 'date', editable: true },
+  { key: 'notes', label: 'Notes', type: 'text', editable: true },
 ];
 
 const VARIATION_COLUMNS: ColumnDef[] = [
@@ -279,6 +293,42 @@ const WIR_COLUMNS: ColumnDef[] = [
   { key: 'status', label: 'Status', type: 'status', editable: true, options: WIR_STATUSES },
 ];
 
+const LABOR_DUTY_COLUMNS: ColumnDef[] = [
+  { key: 'project_code', label: 'Project Code', type: 'text', editable: true },
+  { key: 'date', label: 'Date', type: 'date', editable: true },
+  { key: 'worker_name', label: 'Worker Name', type: 'text', editable: true },
+  { key: 'role', label: 'Role', type: 'text', editable: true, options: ['Mason', 'Carpenter', 'Steel Fixer', 'Electrician', 'Plumber', 'Painter', 'Laborer', 'Welder', 'Operator', 'Foreman', 'Supervisor'] },
+  { key: 'no_of_workers', label: 'No. of Workers', type: 'number', editable: true },
+  { key: 'hours_per_day', label: 'Hours/Day', type: 'number', editable: true },
+  { key: 'days', label: 'Days', type: 'number', editable: true },
+  { key: 'total_hours', label: 'Total Hours', type: 'number' },
+  { key: 'rate_per_hour', label: 'Rate/Hour', type: 'money', editable: true },
+  { key: 'amount', label: 'Amount', type: 'money' },
+  { key: 'notes', label: 'Notes', type: 'text', editable: true },
+];
+
+const EQUIPMENT_COLUMNS: ColumnDef[] = [
+  { key: 'project_code', label: 'Project Code', type: 'text', editable: true },
+  { key: 'date', label: 'Date', type: 'date', editable: true },
+  { key: 'equipment_name', label: 'Equipment Name', type: 'text', editable: true },
+  { key: 'equipment_type', label: 'Type', type: 'text', editable: true, options: ['Excavator', 'Crane', 'Bulldozer', 'Concrete Mixer', 'Dump Truck', 'Forklift', 'Generator', 'Welding Machine', 'Air Compressor', 'Scaffolding', 'Other'] },
+  { key: 'unit', label: 'Unit', type: 'text', editable: true, options: ['Day', 'Hour', 'Week', 'Month', 'Lump Sum'] },
+  { key: 'quantity', label: 'Quantity', type: 'number', editable: true },
+  { key: 'unit_rate', label: 'Unit Rate', type: 'money', editable: true },
+  { key: 'amount', label: 'Amount', type: 'money' },
+  { key: 'notes', label: 'Notes', type: 'text', editable: true },
+];
+
+const TRACKING_COLUMNS: ColumnDef[] = [
+  { key: 'project_id', label: 'Project', type: 'text' },
+  { key: 'company_name', label: 'Company Name', type: 'text' },
+  { key: 'source_type', label: 'Source', type: 'text' },
+  { key: 'amount', label: 'Amount', type: 'money' },
+  { key: 'status', label: 'Status', type: 'status' },
+  { key: 'created_by', label: 'Created By', type: 'text' },
+  { key: 'created_time', label: 'Created Time', type: 'date' },
+];
+
 const VIEW_CONFIGS: Record<string, { columns: ColumnDef[]; filters?: FilterDef[]; showProjectFilter?: boolean; dateRangeColumn?: string }> = {
   projects: { columns: PROJECT_COLUMNS, filters: [{ key: 'status', label: 'Status', options: PROJECT_STATUSES }, { key: 'category', label: 'Category', options: ['Residential', 'Commercial', 'Industrial', 'Infrastructure', 'Renovation'] }], dateRangeColumn: 'start_date' },
   tasks: { columns: TASK_COLUMNS, filters: [{ key: 'status', label: 'Status', options: TASK_STATUSES }, { key: 'priority', label: 'Priority', options: PRIORITIES }], showProjectFilter: true, dateRangeColumn: 'start_date' },
@@ -297,6 +347,9 @@ const VIEW_CONFIGS: Record<string, { columns: ColumnDef[]; filters?: FilterDef[]
   variations: { columns: VARIATION_COLUMNS, filters: [{ key: 'status', label: 'Status', options: VARIATION_STATUSES }, { key: 'type', label: 'Type', options: VARIATION_TYPES }], showProjectFilter: true, dateRangeColumn: 'approved_date' },
   documents: { columns: DOC_COLUMNS, filters: [{ key: 'status', label: 'Status', options: DOC_STATUSES }, { key: 'document_type', label: 'Type', options: DOC_TYPES }], showProjectFilter: true, dateRangeColumn: 'upload_date' },
   wir: { columns: WIR_COLUMNS, filters: [{ key: 'status', label: 'Status', options: WIR_STATUSES }, { key: 'result', label: 'Result', options: WIR_RESULTS }], showProjectFilter: true, dateRangeColumn: 'inspection_date' },
+  laborDuty: { columns: LABOR_DUTY_COLUMNS, filters: [{ key: 'role', label: 'Role', options: ['Mason', 'Carpenter', 'Steel Fixer', 'Electrician', 'Plumber', 'Painter', 'Laborer', 'Welder', 'Operator', 'Foreman', 'Supervisor'] }], showProjectFilter: true, dateRangeColumn: 'date' },
+  equipment: { columns: EQUIPMENT_COLUMNS, filters: [{ key: 'equipment_type', label: 'Type', options: ['Excavator', 'Crane', 'Bulldozer', 'Concrete Mixer', 'Dump Truck', 'Forklift', 'Generator', 'Welding Machine', 'Air Compressor', 'Scaffolding', 'Other'] }], showProjectFilter: true, dateRangeColumn: 'date' },
+  tracking: { columns: TRACKING_COLUMNS, filters: [{ key: 'status', label: 'Status', options: [] }, { key: 'source_type', label: 'Source', options: [] }], showProjectFilter: true, dateRangeColumn: 'created_time' },
 };
 
 const TABLE_NAMES: Record<string, string> = {
@@ -305,6 +358,7 @@ const TABLE_NAMES: Record<string, string> = {
   schedule: 'schedules', contracts: 'contracts', boq: 'boq_headers', boqItems: 'boq_items',
   cashflow: 'cash_flow', subinvoices: 'subcontractor_invoices', clientinvoices: 'client_invoices',
   variations: 'variations', documents: 'documents', wir: 'wir_entries',
+  laborDuty: 'labor_duty', equipment: 'equipment', tracking: 'tracking_sheet',
 };
 
 const VIEW_TITLES: Record<string, string> = {
@@ -313,6 +367,7 @@ const VIEW_TITLES: Record<string, string> = {
   schedule: 'Schedule', contracts: 'Contracts', boq: 'BOQ Headers', boqItems: 'BOQ Items',
   cashflow: 'Cash Flow', subinvoices: 'Subcontractor Invoices', clientinvoices: 'Client Invoices',
   variations: 'Variations', documents: 'Documents', wir: 'Work Inspection Reports',
+  laborDuty: 'Labor Duty', equipment: 'Equipment', tracking: 'Tracking Sheet',
 };
 
 export default function App() {
@@ -354,6 +409,22 @@ export default function App() {
     const viewData = (data as any)[activeView] || [];
     const navItem = NAV_ITEMS.find((n) => n.key === activeView);
 
+    const autoFillOptions: Record<string, string[]> = {};
+    if (activeView === 'subinvoices') {
+      autoFillOptions.subcontractor = [...new Set(data.subInvoices.map((r: any) => r.subcontractor).filter(Boolean))];
+    }
+    if (activeView === 'clientinvoices') {
+      autoFillOptions.client = [...new Set(data.clientInvoices.map((r: any) => r.client).filter(Boolean))];
+    }
+    if (activeView === 'laborDuty') {
+      autoFillOptions.worker_name = [...new Set(data.laborDuty.map((r: any) => r.worker_name).filter(Boolean))];
+      autoFillOptions.project_code = [...new Set(data.projects.map((r: any) => r.project_code).filter(Boolean))];
+    }
+    if (activeView === 'equipment') {
+      autoFillOptions.equipment_name = [...new Set(data.equipment.map((r: any) => r.equipment_name).filter(Boolean))];
+      autoFillOptions.project_code = [...new Set(data.projects.map((r: any) => r.project_code).filter(Boolean))];
+    }
+
     return (
       <DataTableView
         tableName={tableName}
@@ -367,6 +438,7 @@ export default function App() {
         dateRangeColumn={config.dateRangeColumn}
         boqItems={data.boqItems}
         onChanged={data.reload}
+        autoFillOptions={autoFillOptions}
       />
     );
   }
