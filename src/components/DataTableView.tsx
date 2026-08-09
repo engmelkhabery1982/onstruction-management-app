@@ -71,7 +71,7 @@ function InlineCellEditor({
   const selectRef = useRef<HTMLSelectElement>(null);
 
   useEffect(() => {
-    if (col.type === 'select' || col.type === 'status') {
+    if (col.type === 'select' || col.type === 'status' || col.type === 'boolean') {
       selectRef.current?.focus();
     } else {
       inputRef.current?.focus();
@@ -84,7 +84,7 @@ function InlineCellEditor({
     else if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
   }
 
-  const baseClass = "w-full px-2 py-1 text-sm border border-primary-400 rounded shadow-sm focus:outline-none focus:ring-1 focus:ring-primary-500";
+  const baseClass = "w-full px-1 py-0.5 text-sm border-0 bg-white focus:outline-none focus:ring-1 focus:ring-primary-500";
 
   if (col.type === 'select' || col.type === 'status') {
     const opts = col.options && col.options.length > 0
@@ -94,7 +94,7 @@ function InlineCellEditor({
       <select
         ref={selectRef}
         value={value || ''}
-        onChange={(e) => onChange(e.target.value)}
+        onChange={(e) => { onChange(e.target.value); onCommit(); }}
         onBlur={onCommit}
         onKeyDown={handleKeyDown}
         className={baseClass}
@@ -110,7 +110,7 @@ function InlineCellEditor({
       <select
         ref={selectRef}
         value={value ? 'true' : 'false'}
-        onChange={(e) => onChange(e.target.value === 'true')}
+        onChange={(e) => { onChange(e.target.value === 'true'); onCommit(); }}
         onBlur={onCommit}
         onKeyDown={handleKeyDown}
         className={baseClass}
@@ -131,6 +131,26 @@ function InlineCellEditor({
       onKeyDown={handleKeyDown}
       className={baseClass}
     />
+  );
+}
+
+function ExcelCell({ value, col, onClick, isActive, children }: {
+  value: any;
+  col: ColumnDef;
+  onClick: () => void;
+  isActive: boolean;
+  children?: React.ReactNode;
+}) {
+  const isDropdown = col.type === 'select' || col.type === 'status' || col.type === 'boolean';
+  return (
+    <td
+      onClick={onClick}
+      className={`px-2 py-1.5 whitespace-nowrap border border-neutral-200 text-sm ${
+        isActive ? 'ring-2 ring-inset ring-primary-500 bg-primary-50' : 'hover:bg-neutral-50'
+      } ${isDropdown ? 'cursor-pointer' : 'cursor-text'}`}
+    >
+      {children ?? renderCell(value, col)}
+    </td>
   );
 }
 
@@ -637,18 +657,21 @@ export function DataTableView({
         )}
 
         {/* Table */}
-        <div ref={printableRef} className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden printable-area">
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs text-neutral-400">Click any cell to edit directly. Use Enter to save, Esc to cancel.</p>
+        </div>
+        <div ref={printableRef} className="bg-white rounded-xl border border-neutral-300 shadow-sm overflow-hidden printable-area">
+          <div className="scrollbar-always" style={{ overflowX: 'scroll', overflowY: 'visible' }}>
+            <table className="w-full border-collapse">
               <thead>
-                <tr className="bg-neutral-50 border-b border-neutral-200">
-                  {showProjectFilter && <th className="text-left text-xs font-semibold text-neutral-500 px-4 py-3">Project</th>}
+                <tr className="bg-neutral-100">
+                  {showProjectFilter && <th className="text-left text-xs font-semibold text-neutral-700 px-2 py-2 border border-neutral-300">Project</th>}
                   {columns.map((col) => (
-                    <th key={col.key} className="text-left text-xs font-semibold text-neutral-500 px-4 py-3 whitespace-nowrap" style={col.width ? { width: col.width } : undefined}>
+                    <th key={col.key} className="text-left text-xs font-semibold text-neutral-700 px-2 py-2 whitespace-nowrap border border-neutral-300" style={col.width ? { width: col.width } : undefined}>
                       {col.label}
                     </th>
                   ))}
-                  <th className="text-right text-xs font-semibold text-neutral-500 px-4 py-3">Actions</th>
+                  <th className="text-right text-xs font-semibold text-neutral-700 px-2 py-2 border border-neutral-300 no-print">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -660,15 +683,17 @@ export function DataTableView({
                   </tr>
                 ) : (
                   filtered.map((row) => (
-                    <tr key={row.id} className="border-b border-neutral-100 hover:bg-neutral-50 transition-colors">
+                    <tr key={row.id} className="border-b border-neutral-200">
                       {showProjectFilter && (
-                        <td className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">{projectMap[row.project_id] || '—'}</td>
+                        <td className="px-2 py-1.5 text-sm text-neutral-600 whitespace-nowrap border border-neutral-200">{projectMap[row.project_id] || '—'}</td>
                       )}
                       {columns.map((col) => (
-                        <td
+                        <ExcelCell
                           key={col.key}
-                          className="px-4 py-3 whitespace-nowrap cursor-cell"
-                          onDoubleClick={() => {
+                          value={row[col.key]}
+                          col={col}
+                          isActive={inlineEdit?.id === row.id && inlineEdit?.key === col.key}
+                          onClick={() => {
                             if (col.editable !== false && col.key !== 'id' && col.key !== 'created_at') {
                               startInlineEdit(row.id, col.key, row[col.key]);
                             }
@@ -683,12 +708,10 @@ export function DataTableView({
                               onCancel={cancelInlineEdit}
                               projects={projects}
                             />
-                          ) : (
-                            <span className="text-sm text-neutral-700">{renderCell(row[col.key], col)}</span>
-                          )}
-                        </td>
+                          ) : undefined}
+                        </ExcelCell>
                       ))}
-                      <td className="px-4 py-3 text-right no-print">
+                      <td className="px-2 py-1.5 text-right whitespace-nowrap border border-neutral-200 no-print">
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => startEdit(row)} className="text-xs text-primary-600 hover:text-primary-700 font-medium px-2 py-1 rounded hover:bg-primary-50 transition-colors">Edit</button>
                           <button onClick={() => setDeleteId(row.id)} className="text-xs text-error-600 hover:text-error-700 font-medium px-2 py-1 rounded hover:bg-error-50 transition-colors">Delete</button>
