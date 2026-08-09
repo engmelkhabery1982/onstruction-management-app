@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Plus, Search, Download, Loader as Loader2, X, ChevronDown, Calendar, Upload, Printer, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/lib/supabase';
@@ -7,7 +7,7 @@ import type { Project, BOQItem } from '@/types';
 export interface ColumnDef {
   key: string;
   label: string;
-  type?: 'text' | 'number' | 'money' | 'date' | 'status' | 'progress' | 'boolean';
+  type?: 'text' | 'number' | 'money' | 'date' | 'status' | 'progress' | 'boolean' | 'select';
   width?: string;
   editable?: boolean;
   options?: string[];
@@ -57,6 +57,83 @@ function fmtMoney(n: number): string {
   return `${n < 0 ? '-' : ''}$${v.toFixed(0)}`;
 }
 
+function InlineCellEditor({
+  col, value, onChange, onCommit, onCancel, projects,
+}: {
+  col: ColumnDef;
+  value: any;
+  onChange: (v: any) => void;
+  onCommit: () => void;
+  onCancel: () => void;
+  projects: Project[];
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const selectRef = useRef<HTMLSelectElement>(null);
+
+  useEffect(() => {
+    if (col.type === 'select' || col.type === 'status') {
+      selectRef.current?.focus();
+    } else {
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    }
+  }, []);
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') { e.preventDefault(); onCommit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+  }
+
+  const baseClass = "w-full px-2 py-1 text-sm border border-primary-400 rounded shadow-sm focus:outline-none focus:ring-1 focus:ring-primary-500";
+
+  if (col.type === 'select' || col.type === 'status') {
+    const opts = col.options && col.options.length > 0
+      ? col.options
+      : (col.key === 'project_id' ? projects.map((p) => p.id) : []);
+    return (
+      <select
+        ref={selectRef}
+        value={value || ''}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={onCommit}
+        onKeyDown={handleKeyDown}
+        className={baseClass}
+      >
+        <option value="">—</option>
+        {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    );
+  }
+
+  if (col.type === 'boolean') {
+    return (
+      <select
+        ref={selectRef}
+        value={value ? 'true' : 'false'}
+        onChange={(e) => onChange(e.target.value === 'true')}
+        onBlur={onCommit}
+        onKeyDown={handleKeyDown}
+        className={baseClass}
+      >
+        <option value="false">No</option>
+        <option value="true">Yes</option>
+      </select>
+    );
+  }
+
+  return (
+    <input
+      ref={inputRef}
+      type={col.type === 'number' || col.type === 'money' ? 'number' : col.type === 'date' ? 'date' : 'text'}
+      value={value ?? ''}
+      onChange={(e) => onChange(e.target.value)}
+      onBlur={onCommit}
+      onKeyDown={handleKeyDown}
+      className={baseClass}
+    />
+  );
+}
+
 function renderCell(value: any, col: ColumnDef): React.ReactNode {
   if (value === null || value === undefined || value === '') return <span className="text-neutral-300">—</span>;
   switch (col.type) {
@@ -96,6 +173,8 @@ export function DataTableView({
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const [inlineEdit, setInlineEdit] = useState<{ id: string; key: string } | null>(null);
+  const [inlineValue, setInlineValue] = useState<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const printableRef = useRef<HTMLDivElement>(null);
 
@@ -267,6 +346,47 @@ export function DataTableView({
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Template');
     XLSX.writeFile(wb, `${tableName}_template.xlsx`);
+  }
+
+  function startInlineEdit(id: string, key: string, value: any) {
+    setInlineEdit({ id, key });
+    setInlineValue(value ?? '');
+  }
+
+  async function commitInlineEdit() {
+    if (!inlineEdit) return;
+    const { id, key } = inlineEdit;
+    const col = columns.find((c) => c.key === key);
+    let val = inlineValue;
+    if (col) {
+      if (col.type === 'number' || col.type === 'money') {
+        val = val === '' || val === null ? null : parseFloat(String(val).replace(/[^0-9.\-]/g, ''));
+        if (isNaN(val)) val = null;
+      } else if (col.type === 'boolean') {
+        val = val === true || val === 'true' || val === 1 || val === '1';
+      } else if (col.type === 'progress') {
+        val = val === '' || val === null ? 0 : Math.min(100, Math.max(0, parseFloat(String(val).replace(/[^0-9.]/g, '')) || 0));
+      } else if (col.type === 'date') {
+        val = val ? String(val).slice(0, 10) : null;
+      } else if (col.type === 'select') {
+        val = val || null;
+      } else {
+        val = val === '' ? null : String(val);
+      }
+    }
+    setInlineEdit(null);
+    setInlineValue(null);
+    const { error } = await supabase.from(tableName).update({ [key]: val }).eq('id', id);
+    if (error) {
+      alert(`Failed to update: ${error.message}`);
+    } else {
+      onChanged();
+    }
+  }
+
+  function cancelInlineEdit() {
+    setInlineEdit(null);
+    setInlineValue(null);
   }
 
   async function handleDelete() {
@@ -545,11 +665,30 @@ export function DataTableView({
                         <td className="px-4 py-3 text-sm text-neutral-600 whitespace-nowrap">{projectMap[row.project_id] || '—'}</td>
                       )}
                       {columns.map((col) => (
-                        <td key={col.key} className="px-4 py-3 whitespace-nowrap">
-                          {renderCell(row[col.key], col)}
+                        <td
+                          key={col.key}
+                          className="px-4 py-3 whitespace-nowrap cursor-cell"
+                          onDoubleClick={() => {
+                            if (col.editable !== false && col.key !== 'id' && col.key !== 'created_at') {
+                              startInlineEdit(row.id, col.key, row[col.key]);
+                            }
+                          }}
+                        >
+                          {inlineEdit && inlineEdit.id === row.id && inlineEdit.key === col.key ? (
+                            <InlineCellEditor
+                              col={col}
+                              value={inlineValue}
+                              onChange={setInlineValue}
+                              onCommit={commitInlineEdit}
+                              onCancel={cancelInlineEdit}
+                              projects={projects}
+                            />
+                          ) : (
+                            <span className="text-sm text-neutral-700">{renderCell(row[col.key], col)}</span>
+                          )}
                         </td>
                       ))}
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right no-print">
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => startEdit(row)} className="text-xs text-primary-600 hover:text-primary-700 font-medium px-2 py-1 rounded hover:bg-primary-50 transition-colors">Edit</button>
                           <button onClick={() => setDeleteId(row.id)} className="text-xs text-error-600 hover:text-error-700 font-medium px-2 py-1 rounded hover:bg-error-50 transition-colors">Delete</button>
