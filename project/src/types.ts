@@ -6,6 +6,7 @@ export type CostStatus = 'On Budget' | 'Over Budget' | 'Under Budget';
 
 export interface Project {
   id: string;
+  project_code: string;
   name: string;
   client: string;
   location: string;
@@ -156,7 +157,9 @@ export const CONTRACT_TYPES = ['Lump Sum', 'Unit Price', 'Cost Plus', 'Design-Bu
 export interface BOQItem {
   id: string;
   project_id: string;
+  boq_code: string;
   item_code: string;
+  item_name: string;
   description: string;
   category: string;
   unit: string;
@@ -167,6 +170,20 @@ export interface BOQItem {
   created_at: string;
 }
 export const BOQ_CATEGORIES = ['Preliminaries', 'Substructure', 'Superstructure', 'Finishes', 'MEP', 'External Works', 'Contingency'];
+
+// ---- BOQ Header (the BOQ itself — one per project/company/contract) ----
+export interface BOQHeader {
+  id: string;
+  project_id: string;
+  boq_code: string;
+  classification: string;
+  company_name: string;
+  contract_type: string;
+  notes: string;
+  created_at: string;
+}
+export const BOQ_CLASSIFICATIONS = ['Main Contractor', 'Subcontractor'];
+// Reuses the existing contract type list already defined above for Contract.
 
 // ---- WIR ----
 export interface WIREntry {

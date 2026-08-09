@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Loader2 } from 'lucide-react';
 import { supabase } from '@/supabaseClient';
-import type { Project, Task, Cost, Procurement, Safety, ProgressEntry, ViewKey, Schedule, Contract, BOQItem, WIREntry, CashFlowEntry, SubcontractorInvoice, ClientInvoice, Variation, DocumentEntry } from '@/types';
+import type { Project, Task, Cost, Procurement, Safety, ProgressEntry, ViewKey, Schedule, Contract, BOQItem, BOQHeader, WIREntry, CashFlowEntry, SubcontractorInvoice, ClientInvoice, Variation, DocumentEntry } from '@/types';
 import { Sidebar } from '@/components/Sidebar';
 import { Dashboard } from '@/components/Dashboard';
 import { ProjectsView } from '@/components/ProjectsView';
@@ -31,6 +31,7 @@ export default function App() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [boqItems, setBOQItems] = useState<BOQItem[]>([]);
+  const [boqHeaders, setBOQHeaders] = useState<BOQHeader[]>([]);
   const [wirEntries, setWIREntries] = useState<WIREntry[]>([]);
   const [cashFlow, setCashFlow] = useState<CashFlowEntry[]>([]);
   const [subInvoices, setSubInvoices] = useState<SubcontractorInvoice[]>([]);
@@ -94,6 +95,12 @@ export default function App() {
     return (data || []) as BOQItem[];
   }, []);
 
+  const loadBOQHeaders = useCallback(async () => {
+    const { data, error } = await supabase.from('boq_headers').select('*').order('created_at', { ascending: false });
+    if (error) { setError(error.message); return []; }
+    return (data || []) as BOQHeader[];
+  }, []);
+
   const loadWIREntries = useCallback(async () => {
     const { data, error } = await supabase.from('wir_entries').select('*').order('created_at', { ascending: false });
     if (error) { setError(error.message); return []; }
@@ -133,17 +140,17 @@ export default function App() {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [p, t, c, pr, s, pg, sc, ct, bq, wr, cf, si, ci, va, dc] = await Promise.all([
+      const [p, t, c, pr, s, pg, sc, ct, bq, bqh, wr, cf, si, ci, va, dc] = await Promise.all([
         loadProjects(), loadTasks(), loadCosts(), loadProcurement(), loadSafety(), loadProgress(),
-        loadSchedules(), loadContracts(), loadBOQItems(), loadWIREntries(), loadCashFlow(),
+        loadSchedules(), loadContracts(), loadBOQItems(), loadBOQHeaders(), loadWIREntries(), loadCashFlow(),
         loadSubInvoices(), loadClientInvoices(), loadVariations(), loadDocuments(),
       ]);
       setProjects(p); setTasks(t); setCosts(c); setProcurement(pr); setSafety(s); setProgress(pg);
-      setSchedules(sc); setContracts(ct); setBOQItems(bq); setWIREntries(wr); setCashFlow(cf);
+      setSchedules(sc); setContracts(ct); setBOQItems(bq); setBOQHeaders(bqh); setWIREntries(wr); setCashFlow(cf);
       setSubInvoices(si); setClientInvoices(ci); setVariations(va); setDocuments(dc);
       setLoading(false);
     })();
-  }, [loadProjects, loadTasks, loadCosts, loadProcurement, loadSafety, loadProgress, loadSchedules, loadContracts, loadBOQItems, loadWIREntries, loadCashFlow, loadSubInvoices, loadClientInvoices, loadVariations, loadDocuments]);
+  }, [loadProjects, loadTasks, loadCosts, loadProcurement, loadSafety, loadProgress, loadSchedules, loadContracts, loadBOQItems, loadBOQHeaders, loadWIREntries, loadCashFlow, loadSubInvoices, loadClientInvoices, loadVariations, loadDocuments]);
 
   // ---- Project CRUD ----
   const updateProjectCell = useCallback(async (id: string, key: string, value: string | number) => {
