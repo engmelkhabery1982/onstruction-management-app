@@ -374,16 +374,16 @@ export default function App() {
   return (
     <div className="flex h-screen bg-neutral-50">
       {/* Sidebar */}
-      <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-40 w-64 bg-neutral-600 flex flex-col transition-transform duration-300 no-print`}>
+      <aside className={`${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-40 w-64 bg-neutral-800 flex flex-col transition-transform duration-300 no-print`}>
         {/* Logo */}
-        <div className="px-5 py-5 border-b border-neutral-500">
+        <div className="px-5 py-5 border-b border-neutral-700">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-primary-400 to-primary-600 flex items-center justify-center shadow-sm">
               <Building2 size={18} className="text-white" />
             </div>
             <div>
               <h1 className="text-base font-bold text-white">BuildTrack</h1>
-              <p className="text-xs text-neutral-200">Construction Mgmt</p>
+              <p className="text-xs text-neutral-400">Construction Mgmt</p>
             </div>
           </div>
         </div>
@@ -392,7 +392,7 @@ export default function App() {
         <nav className="flex-1 overflow-y-auto scrollbar-thin px-3 py-3">
           {groups.map((group) => (
             <div key={group} className="mb-4">
-              <p className="text-[10px] font-semibold text-neutral-300 uppercase tracking-wider px-3 mb-1.5">{group}</p>
+              <p className="text-[10px] font-semibold text-neutral-500 uppercase tracking-wider px-3 mb-1.5">{group}</p>
               {NAV_ITEMS.filter((n) => n.group === group).map((item) => {
                 const Icon = item.icon;
                 const isActive = activeView === item.key;
@@ -403,10 +403,10 @@ export default function App() {
                     className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
                       isActive
                         ? 'bg-primary-600 text-white shadow-sm'
-                        : 'text-neutral-100 hover:bg-neutral-500 hover:text-white'
+                        : 'text-neutral-300 hover:bg-neutral-700 hover:text-white'
                     }`}
                   >
-                    <Icon size={17} className={isActive ? 'text-white' : 'text-neutral-300'} />
+                    <Icon size={17} className={isActive ? 'text-white' : 'text-neutral-400'} />
                     {item.label}
                   </button>
                 );
@@ -416,8 +416,8 @@ export default function App() {
         </nav>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-neutral-500">
-          <p className="text-xs text-neutral-300 text-center">BuildTrack v1.0</p>
+        <div className="px-5 py-3 border-t border-neutral-700">
+          <p className="text-xs text-neutral-500 text-center">BuildTrack v1.0</p>
         </div>
       </aside>
 

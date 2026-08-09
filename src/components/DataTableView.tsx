@@ -58,17 +58,17 @@ function fmtMoney(n: number): string {
 }
 
 function InlineCellEditor({
-  col, value, onChange, onCommit, onCancel, projects,
+  col, value, onCommit, onCancel, projects,
 }: {
   col: ColumnDef;
   value: any;
-  onChange: (v: any) => void;
-  onCommit: () => void;
+  onCommit: (v: any) => void;
   onCancel: () => void;
   projects: Project[];
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
+  const valRef = useRef<any>(value);
 
   useEffect(() => {
     if (col.type === 'select' || col.type === 'status' || col.type === 'boolean') {
@@ -80,9 +80,11 @@ function InlineCellEditor({
   }, []);
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') { e.preventDefault(); onCommit(); }
+    if (e.key === 'Enter') { e.preventDefault(); onCommit(valRef.current); }
     else if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
   }
+
+  function stop(e: React.MouseEvent | React.FocusEvent) { e.stopPropagation(); }
 
   const baseClass = "w-full px-1 py-0.5 text-sm border-0 bg-white focus:outline-none focus:ring-1 focus:ring-primary-500";
 
@@ -93,9 +95,10 @@ function InlineCellEditor({
     return (
       <select
         ref={selectRef}
-        value={value || ''}
-        onChange={(e) => { onChange(e.target.value); onCommit(); }}
-        onBlur={onCommit}
+        value={valRef.current || ''}
+        onChange={(e) => { valRef.current = e.target.value; onCommit(e.target.value); }}
+        onClick={stop}
+        onMouseDown={stop}
         onKeyDown={handleKeyDown}
         className={baseClass}
       >
@@ -109,9 +112,10 @@ function InlineCellEditor({
     return (
       <select
         ref={selectRef}
-        value={value ? 'true' : 'false'}
-        onChange={(e) => { onChange(e.target.value === 'true'); onCommit(); }}
-        onBlur={onCommit}
+        value={valRef.current ? 'true' : 'false'}
+        onChange={(e) => { valRef.current = e.target.value === 'true'; onCommit(e.target.value === 'true'); }}
+        onClick={stop}
+        onMouseDown={stop}
         onKeyDown={handleKeyDown}
         className={baseClass}
       >
@@ -125,9 +129,11 @@ function InlineCellEditor({
     <input
       ref={inputRef}
       type={col.type === 'number' || col.type === 'money' ? 'number' : col.type === 'date' ? 'date' : 'text'}
-      value={value ?? ''}
-      onChange={(e) => onChange(e.target.value)}
-      onBlur={onCommit}
+      value={valRef.current ?? ''}
+      onChange={(e) => { valRef.current = e.target.value; }}
+      onBlur={() => onCommit(valRef.current)}
+      onClick={stop}
+      onMouseDown={stop}
       onKeyDown={handleKeyDown}
       className={baseClass}
     />
@@ -373,11 +379,11 @@ export function DataTableView({
     setInlineValue(value ?? '');
   }
 
-  async function commitInlineEdit() {
+  async function commitInlineEdit(commitValue?: any) {
     if (!inlineEdit) return;
     const { id, key } = inlineEdit;
     const col = columns.find((c) => c.key === key);
-    let val = inlineValue;
+    let val = commitValue !== undefined ? commitValue : inlineValue;
     if (col) {
       if (col.type === 'number' || col.type === 'money') {
         val = val === '' || val === null ? null : parseFloat(String(val).replace(/[^0-9.\-]/g, ''));
@@ -388,7 +394,7 @@ export function DataTableView({
         val = val === '' || val === null ? 0 : Math.min(100, Math.max(0, parseFloat(String(val).replace(/[^0-9.]/g, '')) || 0));
       } else if (col.type === 'date') {
         val = val ? String(val).slice(0, 10) : null;
-      } else if (col.type === 'select') {
+      } else if (col.type === 'select' || col.type === 'status') {
         val = val || null;
       } else {
         val = val === '' ? null : String(val);
@@ -538,8 +544,8 @@ export function DataTableView({
   }
 
   return (
-    <div className="flex-1 overflow-auto scrollbar-thin bg-neutral-50">
-      <div className="p-6 max-w-7xl mx-auto animate-fade-in">
+    <div className="flex-1 flex flex-col overflow-hidden bg-neutral-50">
+      <div className="p-6 max-w-7xl mx-auto w-full flex-1 flex flex-col overflow-hidden animate-fade-in">
         {/* Header */}
         <div className="mb-5 flex items-start justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
@@ -660,10 +666,10 @@ export function DataTableView({
         <div className="flex items-center justify-between mb-2">
           <p className="text-xs text-neutral-400">Click any cell to edit directly. Use Enter to save, Esc to cancel.</p>
         </div>
-        <div ref={printableRef} className="bg-white rounded-xl border border-neutral-300 shadow-sm overflow-hidden printable-area">
-          <div className="scrollbar-always" style={{ overflowX: 'scroll', overflowY: 'visible' }}>
+        <div ref={printableRef} className="bg-white rounded-xl border border-neutral-300 shadow-sm overflow-hidden printable-area flex-1 flex flex-col min-h-0">
+          <div className="scrollbar-always flex-1 overflow-auto min-h-0" style={{ overflowX: 'scroll', overflowY: 'auto' }}>
             <table className="w-full border-collapse">
-              <thead>
+              <thead className="sticky top-0 z-10">
                 <tr className="bg-neutral-100">
                   {showProjectFilter && <th className="text-left text-xs font-semibold text-neutral-700 px-2 py-2 border border-neutral-300">Project</th>}
                   {columns.map((col) => (
@@ -703,7 +709,6 @@ export function DataTableView({
                             <InlineCellEditor
                               col={col}
                               value={inlineValue}
-                              onChange={setInlineValue}
                               onCommit={commitInlineEdit}
                               onCancel={cancelInlineEdit}
                               projects={projects}
