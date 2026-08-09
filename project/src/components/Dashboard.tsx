@@ -1,12 +1,10 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, FolderKanban, CircleCheck as CheckCircle2, TriangleAlert as AlertTriangle, Clock, Package, ShieldAlert, Users, CalendarClock, Signature as FileSignature, ClipboardList, Banknote, Receipt, FileText, GitBranch, FolderOpen, Target, Gauge, Activity, CircleAlert as AlertCircle, CircleArrowRight as ArrowRightCircle, Lightbulb, ChevronDown, Building2, LayoutDashboard, Layers, ListFilter as Filter, Zap, ArrowUpRight, ArrowDownRight, Wallet, ChartBar as BarChart3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, FolderKanban, CircleCheck as CheckCircle2, TriangleAlert as AlertTriangle, Clock, Package, ShieldAlert, Users, CalendarClock, Signature as FileSignature, ClipboardList, Banknote, Receipt, FileText, GitBranch, FolderOpen, Target, Gauge, Activity, CircleAlert as AlertCircle, CircleArrowRight as ArrowRightCircle, Lightbulb, ChevronDown, Building2, LayoutDashboard, Layers, ListFilter as Filter, Zap, ArrowUpRight, ArrowDownRight, Wallet, ChartBar as BarChart3, Search, PackageCheck, Truck, FileCheck as FileCheck2, HeartPulse, TrendingUpDown, CircleDollarSign, Percent, ListChecks, Hash } from 'lucide-react';
 import type {
   Project, Task, Cost, Procurement, Safety, ProgressEntry, ProjectWithStats, ViewKey,
   Schedule, Contract, BOQItem, CashFlowEntry, SubcontractorInvoice, ClientInvoice,
   Variation, DocumentEntry,
 } from '@/types';
-  LayoutDashboard, Search, PackageCheck, Truck, FileCheck2, HeartPulse,
-  TrendingUpDown, CircleDollarSign, Percent, ListChecks, Hash,
 
 interface DashboardProps {
   projects: Project[];

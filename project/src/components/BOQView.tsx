@@ -121,6 +121,5 @@ export function BOQView({ boqItems, projects, onCellChange, onAddRow, onDeleteRo
       </div>
     </div>
   )
-  )
   );
 }

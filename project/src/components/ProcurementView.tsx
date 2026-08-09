@@ -183,6 +183,5 @@ export function ProcurementView({ procurement, projects, onCellChange, onAddRow,
       </div>
     </div>
   )
-  )
   );
 }

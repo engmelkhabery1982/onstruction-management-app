@@ -6,7 +6,9 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
-    tsconfigPaths: true,
+    alias: {
+      '@': new URL('./src', import.meta.url).pathname,
+    },
   },
   optimizeDeps: {
     exclude: ['lucide-react'],

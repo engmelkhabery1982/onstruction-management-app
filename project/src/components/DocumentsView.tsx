@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Upload, Download, FolderOpen, Loader2, Search } from 'lucide-react';
+import { Upload, Download, FolderOpen, Loader as Loader2, Search } from 'lucide-react';
 import { SpreadsheetGrid, type Column } from '@/components/SpreadsheetGrid';
 import type { DocumentEntry, Project } from '@/types';
 import { DOCUMENT_TYPES, DOCUMENT_STATUSES } from '@/types';

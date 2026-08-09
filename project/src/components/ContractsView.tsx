@@ -129,6 +129,5 @@ export function ContractsView({ contracts, projects, onCellChange, onAddRow, onD
       </div>
     </div>
   )
-  )
   );
 }
