@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Upload, Download, Package, Loader2 } from 'lucide-react';
+import { Upload, Download, Package, Loader as Loader2, Search } from 'lucide-react';
 import { SpreadsheetGrid, type Column } from '@/components/SpreadsheetGrid';
 import type { Procurement, Project } from '@/types';
 import { PROCUREMENT_STATUSES } from '@/types';
@@ -24,6 +24,7 @@ export function ProcurementView({ procurement, projects, onCellChange, onAddRow,
   const [importing, setImporting] = useState(false);
   const [filterProject, setFilterProject] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [search, setSearch] = useState('');
 
   const projectNameMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -58,6 +59,7 @@ export function ProcurementView({ procurement, projects, onCellChange, onAddRow,
   const filtered = procurement.filter((p) => {
     if (filterProject !== 'all' && p.project_id !== filterProject) return false;
     if (filterStatus !== 'all' && p.status !== filterStatus) return false;
+    if (search && !p.item.toLowerCase().includes(search.toLowerCase()) && !p.supplier.toLowerCase().includes(search.toLowerCase()) && !p.notes.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
@@ -140,6 +142,17 @@ export function ProcurementView({ procurement, projects, onCellChange, onAddRow,
           {PROCUREMENT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
 
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search item, supplier..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="text-sm pl-9 pr-3 py-1.5 border border-neutral-200 rounded-lg w-48 focus:outline-none focus:border-primary-400"
+          />
+        </div>
+
         <div className="h-6 w-px bg-neutral-200" />
 
         <label className="text-sm px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 flex items-center gap-1.5 cursor-pointer transition-colors border border-primary-200">
@@ -169,5 +182,7 @@ export function ProcurementView({ procurement, projects, onCellChange, onAddRow,
         />
       </div>
     </div>
+  )
+  )
   );
 }

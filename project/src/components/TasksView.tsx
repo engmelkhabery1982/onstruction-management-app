@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Upload, Download, ListTodo, Loader2, ChevronRight } from 'lucide-react';
+import { Upload, Download, ListTodo, Loader as Loader2, ChevronRight, Search } from 'lucide-react';
 import { SpreadsheetGrid, type Column } from '@/components/SpreadsheetGrid';
 import type { Task, Project } from '@/types';
 import { TASK_STATUSES, TASK_CATEGORIES, TASK_PRIORITIES } from '@/types';
@@ -31,6 +31,8 @@ export function TasksView({
   const [importing, setImporting] = useState(false);
   const [filterProject, setFilterProject] = useState<string>('all');
   const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [filterPriority, setFilterPriority] = useState<string>('all');
+  const [search, setSearch] = useState('');
 
   const projectNameMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -69,6 +71,8 @@ export function TasksView({
   const filtered = tasks.filter((t) => {
     if (filterProject !== 'all' && t.project_id !== filterProject) return false;
     if (filterStatus !== 'all' && t.status !== filterStatus) return false;
+    if (filterPriority !== 'all' && t.priority !== filterPriority) return false;
+    if (search && !t.name.toLowerCase().includes(search.toLowerCase()) && !t.assignee.toLowerCase().includes(search.toLowerCase()) && !t.category.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
@@ -133,6 +137,20 @@ export function TasksView({
           <option value="all">All Statuses</option>
           {TASK_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+
+        <select
+          value={filterPriority}
+          onChange={(e) => setFilterPriority(e.target.value)}
+          className="text-sm px-3 py-1.5 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400"
+        >
+          <option value="all">All Priorities</option>
+          {TASK_PRIORITIES.map((p) => <option key={p} value={p}>{p}</option>)}
+        </select>
+
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+          <input type="text" placeholder="Search task, assignee..." value={search} onChange={(e) => setSearch(e.target.value)} className="text-sm pl-9 pr-3 py-1.5 border border-neutral-200 rounded-lg w-48 focus:outline-none focus:border-primary-400" />
+        </div>
 
         <div className="h-6 w-px bg-neutral-200" />
 

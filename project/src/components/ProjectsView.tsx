@@ -1,5 +1,5 @@
-import { useRef, useState } from 'react';
-import { Upload, Download, FileSpreadsheet, Loader2 } from 'lucide-react';
+import { useRef, useState, useMemo } from 'react';
+import { Upload, Download, FileSpreadsheet, Loader as Loader2, Search, ListFilter as Filter } from 'lucide-react';
 import { SpreadsheetGrid, type Column } from '@/components/SpreadsheetGrid';
 import type { Project, ProjectStatus } from '@/types';
 import { PROJECT_STATUSES, PROJECT_CATEGORIES } from '@/types';
@@ -48,11 +48,19 @@ export function ProjectsView({
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [filter, setFilter] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
   const [search, setSearch] = useState('');
+
+  const statusCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: projects.length };
+    PROJECT_STATUSES.forEach((s) => { counts[s] = projects.filter((p) => p.status === s).length; });
+    return counts;
+  }, [projects]);
 
   const filtered = projects.filter((p) => {
     if (filter !== 'all' && p.status !== filter) return false;
-    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.client.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterCategory !== 'all' && p.category !== filterCategory) return false;
+    if (search && !p.name.toLowerCase().includes(search.toLowerCase()) && !p.client.toLowerCase().includes(search.toLowerCase()) && !p.location.toLowerCase().includes(search.toLowerCase()) && !p.project_manager.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
@@ -83,6 +91,22 @@ export function ProjectsView({
 
   return (
     <div className="flex-1 flex flex-col bg-white overflow-hidden">
+      {/* Status tabs */}
+      <div className="border-b border-neutral-200 bg-white px-4 pt-3 flex items-center gap-1 flex-wrap">
+        {['all', ...PROJECT_STATUSES].map((s) => (
+          <button
+            key={s}
+            onClick={() => setFilter(s)}
+            className={`px-3 py-1.5 text-sm font-medium rounded-t-lg transition-colors border-b-2 ${
+              filter === s ? 'border-primary-500 text-primary-600' : 'border-transparent text-neutral-500 hover:text-neutral-700 hover:bg-neutral-50'
+            }`}
+          >
+            {s === 'all' ? 'All' : s}
+            <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${filter === s ? 'bg-primary-100 text-primary-600' : 'bg-neutral-100 text-neutral-400'}`}>{statusCounts[s] || 0}</span>
+          </button>
+        ))}
+      </div>
+
       {/* Toolbar */}
       <div className="border-b border-neutral-200 bg-white px-4 py-3 flex items-center gap-3 flex-wrap">
         <div className="flex items-center gap-2">
@@ -93,21 +117,24 @@ export function ProjectsView({
 
         <div className="flex-1" />
 
-        <input
-          type="text"
-          placeholder="Search projects or clients..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="text-sm px-3 py-1.5 border border-neutral-200 rounded-lg w-56 focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200"
-        />
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search name, client, location, PM..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="text-sm pl-9 pr-3 py-1.5 border border-neutral-200 rounded-lg w-64 focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-200"
+          />
+        </div>
 
         <select
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          value={filterCategory}
+          onChange={(e) => setFilterCategory(e.target.value)}
           className="text-sm px-3 py-1.5 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400"
         >
-          <option value="all">All Statuses</option>
-          {PROJECT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+          <option value="all">All Categories</option>
+          {PROJECT_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
 
         <div className="h-6 w-px bg-neutral-200" />

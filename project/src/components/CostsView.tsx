@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Upload, Download, DollarSign, Loader2 } from 'lucide-react';
+import { Upload, Download, DollarSign, Loader as Loader2, Search } from 'lucide-react';
 import { SpreadsheetGrid, type Column } from '@/components/SpreadsheetGrid';
 import type { Cost, Project } from '@/types';
 import { COST_STATUSES, COST_CATEGORIES } from '@/types';
@@ -23,6 +23,9 @@ export function CostsView({ costs, projects, onCellChange, onAddRow, onDeleteRow
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [filterProject, setFilterProject] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterCategory, setFilterCategory] = useState('all');
+  const [search, setSearch] = useState('');
 
   const projectNameMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -51,7 +54,13 @@ export function CostsView({ costs, projects, onCellChange, onAddRow, onDeleteRow
     { key: 'notes', header: 'Notes', width: 200, type: 'text' },
   ], [projectOptions, projectNameMap]);
 
-  const filtered = costs.filter((c) => filterProject === 'all' || c.project_id === filterProject);
+  const filtered = costs.filter((c) => {
+    if (filterProject !== 'all' && c.project_id !== filterProject) return false;
+    if (filterStatus !== 'all' && c.status !== filterStatus) return false;
+    if (filterCategory !== 'all' && c.category !== filterCategory) return false;
+    if (search && !c.description.toLowerCase().includes(search.toLowerCase()) && !c.notes.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -117,6 +126,35 @@ export function CostsView({ costs, projects, onCellChange, onAddRow, onDeleteRow
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
 
+        <select
+          value={filterCategory}
+          onChange={(e) => setFilterCategory(e.target.value)}
+          className="text-sm px-3 py-1.5 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400"
+        >
+          <option value="all">All Categories</option>
+          {COST_CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+
+        <select
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
+          className="text-sm px-3 py-1.5 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400"
+        >
+          <option value="all">All Statuses</option>
+          {COST_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search costs..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="text-sm pl-9 pr-3 py-1.5 border border-neutral-200 rounded-lg w-48 focus:outline-none focus:border-primary-400"
+          />
+        </div>
+
         <div className="h-6 w-px bg-neutral-200" />
 
         <label className="text-sm px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 flex items-center gap-1.5 cursor-pointer transition-colors border border-primary-200">
@@ -146,5 +184,6 @@ export function CostsView({ costs, projects, onCellChange, onAddRow, onDeleteRow
         />
       </div>
     </div>
+  )
   );
 }

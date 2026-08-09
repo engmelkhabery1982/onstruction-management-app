@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Upload, Download, ShieldAlert, Loader2 } from 'lucide-react';
+import { Upload, Download, ShieldAlert, Loader as Loader2, Search } from 'lucide-react';
 import { SpreadsheetGrid, type Column } from '@/components/SpreadsheetGrid';
 import type { Safety, Project } from '@/types';
 import { SAFETY_STATUSES, SAFETY_TYPES, SAFETY_SEVERITIES } from '@/types';
@@ -26,6 +26,8 @@ export function SafetyView({ safety, projects, onCellChange, onAddRow, onDeleteR
   const [importing, setImporting] = useState(false);
   const [filterProject, setFilterProject] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
+  const [filterSeverity, setFilterSeverity] = useState('all');
+  const [search, setSearch] = useState('');
 
   const projectNameMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -65,6 +67,8 @@ export function SafetyView({ safety, projects, onCellChange, onAddRow, onDeleteR
   const filtered = safety.filter((s) => {
     if (filterProject !== 'all' && s.project_id !== filterProject) return false;
     if (filterStatus !== 'all' && s.status !== filterStatus) return false;
+    if (filterSeverity !== 'all' && s.severity !== filterSeverity) return false;
+    if (search && !s.description.toLowerCase().includes(search.toLowerCase()) && !s.location.toLowerCase().includes(search.toLowerCase()) && !s.responsible.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
@@ -140,6 +144,20 @@ export function SafetyView({ safety, projects, onCellChange, onAddRow, onDeleteR
           <option value="all">All Statuses</option>
           {SAFETY_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
+
+        <select
+          value={filterSeverity}
+          onChange={(e) => setFilterSeverity(e.target.value)}
+          className="text-sm px-3 py-1.5 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400"
+        >
+          <option value="all">All Severities</option>
+          {SAFETY_SEVERITIES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+          <input type="text" placeholder="Search description..." value={search} onChange={(e) => setSearch(e.target.value)} className="text-sm pl-9 pr-3 py-1.5 border border-neutral-200 rounded-lg w-48 focus:outline-none focus:border-primary-400" />
+        </div>
 
         <div className="h-6 w-px bg-neutral-200" />
 

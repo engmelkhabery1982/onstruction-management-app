@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Upload, Download, FileText, Loader2 } from 'lucide-react';
+import { Upload, Download, FileText, Loader as Loader2, Search } from 'lucide-react';
 import { SpreadsheetGrid, type Column } from '@/components/SpreadsheetGrid';
 import type { ClientInvoice, Project } from '@/types';
 import { CLIENT_INVOICE_STATUSES, PAYMENT_STATUSES } from '@/types';
@@ -23,6 +23,8 @@ export function ClientInvoicesView({ clientInvoices, projects, onCellChange, onA
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [filterProject, setFilterProject] = useState('all');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [search, setSearch] = useState('');
 
   const projectNameMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -50,7 +52,12 @@ export function ClientInvoicesView({ clientInvoices, projects, onCellChange, onA
     { key: 'notes', header: 'Notes', width: 200, type: 'text' },
   ], [projectOptions, projectNameMap]);
 
-  const filtered = clientInvoices.filter((c) => filterProject === 'all' || c.project_id === filterProject);
+  const filtered = clientInvoices.filter((c) => {
+    if (filterProject !== 'all' && c.project_id !== filterProject) return false;
+    if (filterStatus !== 'all' && c.status !== filterStatus) return false;
+    if (search && !c.client.toLowerCase().includes(search.toLowerCase()) && !c.invoice_number.toLowerCase().includes(search.toLowerCase())) return false;
+    return true;
+  });
 
   const handleImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -101,6 +108,14 @@ export function ClientInvoicesView({ clientInvoices, projects, onCellChange, onA
           <option value="all">All Projects</option>
           {projects.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
         </select>
+        <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)} className="text-sm px-3 py-1.5 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400">
+          <option value="all">All Statuses</option>
+          {CLIENT_INVOICE_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+          <input type="text" placeholder="Search client..." value={search} onChange={(e) => setSearch(e.target.value)} className="text-sm pl-9 pr-3 py-1.5 border border-neutral-200 rounded-lg w-48 focus:outline-none focus:border-primary-400" />
+        </div>
         <div className="h-6 w-px bg-neutral-200" />
         <label className="text-sm px-3 py-1.5 bg-primary-50 text-primary-700 rounded-lg hover:bg-primary-100 flex items-center gap-1.5 cursor-pointer transition-colors border border-primary-200">
           {importing ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
@@ -115,5 +130,6 @@ export function ClientInvoicesView({ clientInvoices, projects, onCellChange, onA
         <SpreadsheetGrid<ClientInvoice> columns={columns} rows={filtered} onCellChange={handleCellChange} onDeleteRow={onDeleteRow} onAddRow={onAddRow} getRowId={(c) => c.id} emptyMessage="No client invoices yet. Click 'Add Row' or import from Excel." />
       </div>
     </div>
+  )
   );
 }
