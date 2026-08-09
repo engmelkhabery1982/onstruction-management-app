@@ -1300,6 +1300,3 @@ export function Dashboard({
     </div>
   );
 }
-
-
-export { Dashboard }
