@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react';
-import { Plus, Search, Download, Loader as Loader2, X, ChevronDown, Calendar } from 'lucide-react';
+import { useState, useMemo, useRef } from 'react';
+import { Plus, Search, Download, Loader as Loader2, X, ChevronDown, Calendar, Upload, Printer, FileText } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { supabase } from '@/lib/supabase';
 import type { Project, BOQItem } from '@/types';
 
@@ -93,6 +94,10 @@ export function DataTableView({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editRow, setEditRow] = useState<Record<string, any>>({});
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const printableRef = useRef<HTMLDivElement>(null);
 
   const filtered = useMemo(() => {
     let result = [...data];
@@ -196,6 +201,72 @@ export function DataTableView({
     setEditingId(null);
     setEditRow({});
     onChanged();
+  }
+
+  function handleImportClick() {
+    fileInputRef.current?.click();
+  }
+
+  async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: 'array' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows: Record<string, any>[] = XLSX.utils.sheet_to_json(ws, { defval: '' });
+      if (rows.length === 0) {
+        setImportResult({ success: 0, failed: 0, errors: ['The Excel file is empty or has no data rows.'] });
+        setImporting(false);
+        e.target.value = '';
+        return;
+      }
+      const labelToKey: Record<string, string> = {};
+      columns.forEach((c) => { labelToKey[c.label.toLowerCase()] = c.key; });
+      if (showProjectFilter) labelToKey['project'] = 'project_id';
+      const mapped = rows.map((r) => {
+        const out: Record<string, any> = {};
+        for (const [k, v] of Object.entries(r)) {
+          const key = labelToKey[k.toString().toLowerCase().trim()] || k;
+          out[key] = v;
+        }
+        return coerceTypes(out);
+      });
+      const BATCH = 500;
+      let success = 0;
+      const errors: string[] = [];
+      for (let i = 0; i < mapped.length; i += BATCH) {
+        const batch = mapped.slice(i, i + BATCH);
+        const { error } = await supabase.from(tableName).insert(batch);
+        if (error) {
+          errors.push(`Rows ${i + 1}-${i + batch.length}: ${error.message}`);
+        } else {
+          success += batch.length;
+        }
+      }
+      setImportResult({ success, failed: mapped.length - success, errors });
+      onChanged();
+    } catch (err: any) {
+      setImportResult({ success: 0, failed: 0, errors: [err.message || 'Failed to read the Excel file.'] });
+    }
+    setImporting(false);
+    e.target.value = '';
+  }
+
+  function handlePrint() {
+    window.print();
+  }
+
+  function downloadExcelTemplate() {
+    const headerRow: Record<string, string> = {};
+    columns.forEach((c) => { headerRow[c.label] = ''; });
+    if (showProjectFilter) headerRow['Project'] = '';
+    const ws = XLSX.utils.json_to_sheet([headerRow]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template');
+    XLSX.writeFile(wb, `${tableName}_template.xlsx`);
   }
 
   async function handleDelete() {
@@ -341,13 +412,23 @@ export function DataTableView({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-neutral-600 border border-neutral-200 rounded-lg hover:bg-neutral-100 transition-colors">
+            <button onClick={handlePrint} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-neutral-600 border border-neutral-200 rounded-lg hover:bg-neutral-100 transition-colors no-print" title="Print or save as PDF">
+              <Printer size={15} /> Print
+            </button>
+            <button onClick={handleImportClick} disabled={importing} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-neutral-600 border border-neutral-200 rounded-lg hover:bg-neutral-100 transition-colors disabled:opacity-50 no-print" title="Import data from an Excel file">
+              {importing ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />} Import
+            </button>
+            <button onClick={downloadExcelTemplate} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-neutral-600 border border-neutral-200 rounded-lg hover:bg-neutral-100 transition-colors no-print" title="Download a blank Excel template with the correct column headers">
+              <FileText size={15} /> Template
+            </button>
+            <button onClick={exportCSV} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-neutral-600 border border-neutral-200 rounded-lg hover:bg-neutral-100 transition-colors no-print">
               <Download size={15} /> Export
             </button>
-            <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors shadow-sm">
+            <button onClick={() => setShowAdd(true)} className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-white bg-primary-600 rounded-lg hover:bg-primary-700 transition-colors shadow-sm no-print">
               <Plus size={15} /> Add New
             </button>
           </div>
+          <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" onChange={handleImportFile} className="hidden" />
         </div>
 
         {/* Filters bar */}
@@ -416,8 +497,27 @@ export function DataTableView({
           )}
         </div>
 
+        {/* Import result banner */}
+        {importResult && (
+          <div className={`mb-4 rounded-lg border p-4 ${importResult.errors.length > 0 ? 'border-warning-200 bg-warning-50' : 'border-success-200 bg-success-50'} no-print`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-neutral-800">
+                  Import complete: {importResult.success} record{importResult.success !== 1 ? 's' : ''} imported successfully{importResult.failed > 0 ? `, ${importResult.failed} failed` : ''}.
+                </p>
+                {importResult.errors.length > 0 && (
+                  <ul className="mt-2 text-xs text-neutral-600 space-y-1 max-h-32 overflow-auto">
+                    {importResult.errors.map((err, i) => (<li key={i}>• {err}</li>))}
+                  </ul>
+                )}
+              </div>
+              <button onClick={() => setImportResult(null)} className="text-neutral-400 hover:text-neutral-600 flex-shrink-0"><X size={16} /></button>
+            </div>
+          </div>
+        )}
+
         {/* Table */}
-        <div className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden">
+        <div ref={printableRef} className="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden printable-area">
           <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full">
               <thead>

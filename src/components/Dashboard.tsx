@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
-import { TrendingUp, TrendingDown, DollarSign, FolderKanban, CircleCheck as CheckCircle2, TriangleAlert as AlertTriangle, Clock, Package, ShieldAlert, Users, CalendarClock, Signature as FileSignature, ClipboardList, Banknote, Receipt, FileText, GitBranch, FolderOpen, Target, Gauge, Activity, CircleAlert as AlertCircle, CircleArrowRight as ArrowRightCircle, Lightbulb, ChevronDown, Building2, Layers, Zap, ArrowUpRight, ArrowDownRight, Wallet, ChartBar as BarChart3, LayoutDashboard, Search, PackageCheck, Truck, FileCheck as FileCheck2, HeartPulse, CircleDollarSign, ListChecks, Hash } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, FolderKanban, CircleCheck as CheckCircle2, TriangleAlert as AlertTriangle, Clock, Package, ShieldAlert, Users, CalendarClock, Signature as FileSignature, ClipboardList, Banknote, Receipt, FileText, GitBranch, FolderOpen, Target, Gauge, Activity, CircleAlert as AlertCircle, CircleArrowRight as ArrowRightCircle, Lightbulb, ChevronDown, Building2, Layers, Zap, ArrowUpRight, ArrowDownRight, Wallet, ChartBar as BarChart3, LayoutDashboard, Search, PackageCheck, Truck, FileCheck as FileCheck2, HeartPulse, CircleDollarSign, ListChecks, Hash, Printer } from 'lucide-react';
 import { SCurveChart } from './SCurveChart';
 import type {
   Project, Task, Cost, CostEntry, Procurement, Safety, ProgressEntry, ProjectWithStats, ViewKey,
@@ -503,17 +503,22 @@ export function Dashboard({
                 : `Detailed view for ${selectedProject?.name || 'project'}`}
             </p>
           </div>
-          <div className="relative">
-            <Building2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
-            <select
-              value={selectedProjectId}
-              onChange={(e) => setSelectedProjectId(e.target.value)}
-              className="appearance-none pl-9 pr-10 py-2.5 text-sm font-medium border border-neutral-200 rounded-xl bg-white shadow-sm hover:border-primary-300 focus:outline-none focus:border-primary-400 transition-colors min-w-56"
-            >
-              <option value="all">All Projects</option>
-              {projects.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
-            </select>
-            <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+          <div className="flex items-center gap-3">
+            <button onClick={() => window.print()} className="no-print flex items-center gap-1.5 px-3 py-2.5 text-sm font-medium text-neutral-600 border border-neutral-200 rounded-xl bg-white shadow-sm hover:border-primary-300 transition-colors">
+              <Printer size={15} /> Print
+            </button>
+            <div className="relative">
+              <Building2 size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+              <select
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                className="appearance-none pl-9 pr-10 py-2.5 text-sm font-medium border border-neutral-200 rounded-xl bg-white shadow-sm hover:border-primary-300 focus:outline-none focus:border-primary-400 transition-colors min-w-56"
+              >
+                <option value="all">All Projects</option>
+                {projects.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
+              </select>
+              <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+            </div>
           </div>
         </div>
 
