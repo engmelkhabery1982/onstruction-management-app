@@ -2,8 +2,8 @@ import { useMemo, useState, useEffect, useRef } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, FolderKanban, CircleCheck as CheckCircle2, TriangleAlert as AlertTriangle, Clock, Package, ShieldAlert, Users, CalendarClock, Signature as FileSignature, ClipboardList, Banknote, Receipt, FileText, GitBranch, FolderOpen, Target, Gauge, Activity, CircleAlert as AlertCircle, CircleArrowRight as ArrowRightCircle, Lightbulb, ChevronDown, Building2, Layers, Zap, ArrowUpRight, ArrowDownRight, Wallet, ChartBar as BarChart3, LayoutDashboard, Search, PackageCheck, Truck, FileCheck as FileCheck2, HeartPulse, CircleDollarSign, ListChecks, Hash } from 'lucide-react';
 import { SCurveChart } from './SCurveChart';
 import type {
-  Project, Task, Cost, Procurement, Safety, ProgressEntry, ProjectWithStats, ViewKey,
-  Schedule, Contract, BOQItem, CashFlowEntry, SubcontractorInvoice, ClientInvoice,
+  Project, Task, Cost, CostEntry, Procurement, Safety, ProgressEntry, ProjectWithStats, ViewKey,
+  Schedule, Contract, BOQHeader, BOQItem, CashFlowEntry, SubcontractorInvoice, ClientInvoice,
   Variation, DocumentEntry,
 } from '@/types';
 
@@ -11,11 +11,13 @@ interface DashboardProps {
   projects: Project[];
   tasks: Task[];
   costs: Cost[];
+  costEntries: CostEntry[];
   procurement: Procurement[];
   safety: Safety[];
   progress: ProgressEntry[];
   schedules: Schedule[];
   contracts: Contract[];
+  boqHeaders: BOQHeader[];
   boqItems: BOQItem[];
   cashFlow: CashFlowEntry[];
   subInvoices: SubcontractorInvoice[];
@@ -65,8 +67,8 @@ function useAnimatedNumber(target: number, duration = 800): number {
 type DashboardTab = 'overview' | 'financials' | 'schedule' | 'safety' | 'procurement' | 'documents' | 'action';
 
 export function Dashboard({
-  projects, tasks, costs, procurement, safety, progress, schedules, contracts,
-  boqItems, cashFlow, subInvoices, clientInvoices, variations, documents, onNavigate,
+  projects, tasks, costs, costEntries, procurement, safety, progress, schedules, contracts,
+  boqHeaders, boqItems, cashFlow, subInvoices, clientInvoices, variations, documents, onNavigate,
 }: DashboardProps) {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('all');
   const [activeTab, setActiveTab] = useState<DashboardTab>('overview');

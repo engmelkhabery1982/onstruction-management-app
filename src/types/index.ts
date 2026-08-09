@@ -12,6 +12,8 @@ export interface Project {
   progress: number;
   project_manager: string;
   contractor: string;
+  project_code: string;
+  boq_code: string;
   notes: string;
   created_at: string;
 }
@@ -40,6 +42,11 @@ export interface Task {
 export interface Cost {
   id: string;
   project_id: string;
+  project_code: string;
+  item_code: string;
+  company_name: string;
+  boq_item_code: string;
+  boq_item_name: string;
   category: string;
   description: string;
   planned: number;
@@ -47,6 +54,22 @@ export interface Cost {
   committed: number;
   status: string;
   notes: string;
+  created_at: string;
+}
+
+export interface CostEntry {
+  id: string;
+  project_id: string;
+  project_code: string;
+  boq_code: string;
+  company_name: string;
+  boq_item_code: string;
+  boq_item_name: string;
+  date: string | null;
+  cost_type: string;
+  invoice_number: string;
+  payment_order_number: string;
+  amount: number;
   created_at: string;
 }
 
@@ -83,9 +106,17 @@ export interface Safety {
 export interface ProgressEntry {
   id: string;
   project_id: string;
+  project_code: string;
+  company_name: string;
   date: string | null;
   area: string;
   percent_complete: number;
+  prev_value: number;
+  prev_pct: number;
+  current_value: number;
+  current_pct: number;
+  total_value: number;
+  total_pct: number;
   weather: string;
   workers: number;
   notes: string;
@@ -95,13 +126,20 @@ export interface ProgressEntry {
 export interface Schedule {
   id: string;
   project_id: string;
+  project_code: string;
+  boq_code: string;
+  boq_item_code: string;
+  boq_item_name: string;
   activity: string;
   start_date: string | null;
   end_date: string | null;
   duration_days: number;
+  planned_value: number;
   progress: number;
   predecessors: string;
+  predecessor_item: string;
   critical_path: boolean;
+  is_critical_item: boolean;
   responsible: string;
   status: string;
   notes: string;
@@ -124,10 +162,25 @@ export interface Contract {
   created_at: string;
 }
 
+export interface BOQHeader {
+  id: string;
+  project_id: string;
+  project_code: string;
+  boq_code: string;
+  classification: string;
+  company_name: string;
+  contract_type: string;
+  total_value: number;
+  created_at: string;
+}
+
 export interface BOQItem {
   id: string;
   project_id: string;
+  project_code: string;
+  boq_code: string;
   item_code: string;
+  item_name: string;
   description: string;
   category: string;
   unit: string;
@@ -218,6 +271,12 @@ export interface DocumentEntry {
 export interface WIREntry {
   id: string;
   project_id: string;
+  project_code: string;
+  boq_code: string;
+  item_code: string;
+  item_name: string;
+  item_description: string;
+  company_name: string;
   wir_number: string;
   area: string;
   work_type: string;
@@ -226,11 +285,16 @@ export interface WIREntry {
   result: string;
   remarks: string;
   status: string;
+  unit: string;
+  quantity: number;
+  unit_price: number;
+  item_amount: number;
+  completion_pct: number;
   created_at: string;
 }
 
 export type ViewKey =
-  | 'dashboard' | 'projects' | 'tasks' | 'costs' | 'procurement'
-  | 'safety' | 'progress' | 'schedule' | 'contracts' | 'boq'
-  | 'cashflow' | 'subinvoices' | 'clientinvoices' | 'variations'
-  | 'documents' | 'wir';
+  | 'dashboard' | 'projects' | 'tasks' | 'costs' | 'costEntries'
+  | 'procurement' | 'safety' | 'progress' | 'schedule' | 'contracts'
+  | 'boq' | 'boqItems' | 'cashflow' | 'subinvoices' | 'clientinvoices'
+  | 'variations' | 'documents' | 'wir';

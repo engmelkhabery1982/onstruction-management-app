@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
-import { Plus, Search, Download, Loader as Loader2, X, ChevronDown } from 'lucide-react';
+import { Plus, Search, Download, Loader as Loader2, X, ChevronDown, Calendar } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import type { Project } from '@/types';
+import type { Project, BOQItem } from '@/types';
 
 export interface ColumnDef {
   key: string;
@@ -10,6 +10,8 @@ export interface ColumnDef {
   width?: string;
   editable?: boolean;
   options?: string[];
+  autoFillFrom?: string;
+  autoFillKey?: string;
 }
 
 export interface FilterDef {
@@ -27,20 +29,22 @@ interface DataTableViewProps {
   filters?: FilterDef[];
   projects: Project[];
   showProjectFilter?: boolean;
+  dateRangeColumn?: string;
+  boqItems?: BOQItem[];
   onChanged: () => void;
 }
 
 function statusColor(status: string): string {
   const s = status.toLowerCase();
-  if (['completed', 'delivered', 'approved', 'closed', 'current', 'paid'].includes(s))
+  if (['completed', 'delivered', 'approved', 'closed', 'current', 'paid', 'pass'].includes(s))
     return 'bg-success-100 text-success-700 border-success-200';
-  if (['in progress', 'active', 'ordered', 'under review', 'partially delivered', 'investigating', 'submitted'].includes(s))
+  if (['in progress', 'active', 'ordered', 'under review', 'partially delivered', 'investigating', 'submitted', 'conditional pass'].includes(s))
     return 'bg-primary-100 text-primary-700 border-primary-200';
-  if (['planning', 'requested', 'pending', 'draft'].includes(s))
+  if (['planning', 'requested', 'pending', 'draft', 'not started'].includes(s))
     return 'bg-secondary-100 text-secondary-700 border-secondary-200';
-  if (['on hold', 'delayed', 'open', 'overdue', 'rejected'].includes(s))
+  if (['on hold', 'delayed', 'open', 'overdue', 'rejected', 'fail'].includes(s))
     return 'bg-warning-100 text-warning-700 border-warning-200';
-  if (['cancelled', 'critical', 'high'].includes(s))
+  if (['cancelled', 'critical', 'high', 'terminated', 'over budget'].includes(s))
     return 'bg-error-100 text-error-700 border-error-200';
   return 'bg-neutral-100 text-neutral-600 border-neutral-200';
 }
@@ -76,11 +80,13 @@ function renderCell(value: any, col: ColumnDef): React.ReactNode {
 }
 
 export function DataTableView({
-  tableName, title, icon: Icon, data, columns, filters, projects, showProjectFilter, onChanged,
+  tableName, title, icon: Icon, data, columns, filters, projects, showProjectFilter, dateRangeColumn, boqItems, onChanged,
 }: DataTableViewProps) {
   const [search, setSearch] = useState('');
   const [filterValues, setFilterValues] = useState<Record<string, string>>({});
   const [projectFilter, setProjectFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [newRow, setNewRow] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
@@ -94,8 +100,20 @@ export function DataTableView({
       result = result.filter((r) => r.project_id === projectFilter);
     }
     Object.entries(filterValues).forEach(([key, val]) => {
-      if (val !== 'all') result = result.filter((r) => r[key] === val);
+      if (val !== 'all') result = result.filter((r) => String(r[key]) === val);
     });
+    if (dateRangeColumn && dateFrom) {
+      result = result.filter((r) => {
+        const d = r[dateRangeColumn];
+        return d && d >= dateFrom;
+      });
+    }
+    if (dateRangeColumn && dateTo) {
+      result = result.filter((r) => {
+        const d = r[dateRangeColumn];
+        return d && d <= dateTo;
+      });
+    }
     if (search) {
       const q = search.toLowerCase();
       result = result.filter((r) =>
@@ -103,13 +121,18 @@ export function DataTableView({
       );
     }
     return result;
-  }, [data, search, filterValues, projectFilter, columns, showProjectFilter]);
+  }, [data, search, filterValues, projectFilter, columns, showProjectFilter, dateRangeColumn, dateFrom, dateTo]);
 
   const projectMap = useMemo(() => {
     const m: Record<string, string> = {};
     projects.forEach((p) => { m[p.id] = p.name; });
     return m;
   }, [projects]);
+
+  function getDynamicFilterOptions(key: string): string[] {
+    const vals = [...new Set(data.map((r) => String(r[key])).filter((v) => v && v !== 'null' && v !== 'undefined'))];
+    return vals.sort();
+  }
 
   function coerceTypes(row: Record<string, any>): Record<string, any> {
     const out: Record<string, any> = {};
@@ -133,6 +156,25 @@ export function DataTableView({
       }
     }
     return out;
+  }
+
+  function autoFillFromBOQItems(row: Record<string, any>, setRow: (r: Record<string, any>) => void, changedKey: string) {
+    const col = columns.find((c) => c.key === changedKey);
+    if (!col?.autoFillFrom || col.autoFillFrom !== 'boqItems' || !boqItems) return;
+    const itemCode = row[changedKey];
+    if (!itemCode) return;
+    const match = boqItems.find((b) => b.item_code === itemCode || b.id === itemCode);
+    if (!match) return;
+    const updates: Record<string, any> = { ...row };
+    if (columns.find((c) => c.key === 'item_name' && !c.editable)) updates.item_name = match.item_name || match.description || '';
+    if (columns.find((c) => c.key === 'boq_item_name' && !c.editable)) updates.boq_item_name = match.item_name || match.description || '';
+    if (columns.find((c) => c.key === 'item_description' && !c.editable)) updates.item_description = match.description || '';
+    if (columns.find((c) => c.key === 'unit' && !c.editable)) updates.unit = match.unit || '';
+    if (columns.find((c) => c.key === 'quantity' && !c.editable)) updates.quantity = match.quantity || 0;
+    if (columns.find((c) => c.key === 'unit_price' && !c.editable)) updates.unit_price = match.unit_rate || 0;
+    if (columns.find((c) => c.key === 'boq_code' && !c.editable)) updates.boq_code = match.boq_code || '';
+    if (columns.find((c) => c.key === 'project_code' && !c.editable)) updates.project_code = match.project_code || '';
+    setRow(updates);
   }
 
   async function handleAdd() {
@@ -196,6 +238,94 @@ export function DataTableView({
     ? [{ key: 'project_id', label: 'Project', type: 'text' as const, options: projects.map((p) => p.id) }, ...editableCols]
     : editableCols;
 
+  const hasActiveFilters = search || Object.values(filterValues).some((v) => v !== 'all') || projectFilter !== 'all' || dateFrom || dateTo;
+
+  function renderFormField(
+    col: ColumnDef,
+    row: Record<string, any>,
+    setRow: (r: Record<string, any>) => void,
+  ) {
+    const isAutoFilled = col.autoFillFrom ? !col.editable : false;
+    const isReadOnly = !col.editable && col.key !== 'project_id';
+
+    if (col.type === 'boolean') {
+      return (
+        <select
+          value={row[col.key] ?? 'false'}
+          onChange={(e) => setRow({ ...row, [col.key]: e.target.value === 'true' })}
+          className="w-full text-sm px-3 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:border-primary-400"
+        >
+          <option value="false">No</option>
+          <option value="true">Yes</option>
+        </select>
+      );
+    }
+
+    if (col.options && col.options.length > 0) {
+      return (
+        <div className="relative">
+          <select
+            value={row[col.key] || ''}
+            onChange={(e) => {
+              const updated = { ...row, [col.key]: e.target.value };
+              setRow(updated);
+              autoFillFromBOQItems(updated, setRow, col.key);
+            }}
+            className="w-full appearance-none text-sm px-3 py-2 pr-9 border border-neutral-200 rounded-lg focus:outline-none focus:border-primary-400"
+          >
+            <option value="">Select...</option>
+            {col.key === 'project_id'
+              ? projects.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))
+              : col.options.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
+          </select>
+          <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+        </div>
+      );
+    }
+
+    if (col.autoFillFrom && col.autoFillKey && boqItems && boqItems.length > 0) {
+      return (
+        <div className="relative">
+          <select
+            value={row[col.key] || ''}
+            onChange={(e) => {
+              const updated = { ...row, [col.key]: e.target.value };
+              setRow(updated);
+              autoFillFromBOQItems(updated, setRow, col.key);
+            }}
+            className="w-full appearance-none text-sm px-3 py-2 pr-9 border border-neutral-200 rounded-lg focus:outline-none focus:border-primary-400"
+          >
+            <option value="">Select Item Code...</option>
+            {boqItems.map((b) => (
+              <option key={b.id} value={b.item_code}>{b.item_code} — {b.item_name || b.description}</option>
+            ))}
+          </select>
+          <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
+        </div>
+      );
+    }
+
+    if (isReadOnly) {
+      return (
+        <input
+          type="text"
+          value={row[col.key] ?? ''}
+          readOnly
+          className="w-full text-sm px-3 py-2 border border-neutral-100 rounded-lg bg-neutral-50 text-neutral-500"
+        />
+      );
+    }
+
+    return (
+      <input
+        type={col.type === 'number' || col.type === 'money' ? 'number' : col.type === 'date' ? 'date' : 'text'}
+        value={row[col.key] ?? ''}
+        onChange={(e) => setRow({ ...row, [col.key]: e.target.value })}
+        className="w-full text-sm px-3 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:border-primary-400"
+      />
+    );
+  }
+
   return (
     <div className="flex-1 overflow-auto scrollbar-thin bg-neutral-50">
       <div className="p-6 max-w-7xl mx-auto animate-fade-in">
@@ -242,20 +372,43 @@ export function DataTableView({
               {projects.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
             </select>
           )}
-          {filters?.map((f) => (
-            <select
-              key={f.key}
-              value={filterValues[f.key] || 'all'}
-              onChange={(e) => setFilterValues({ ...filterValues, [f.key]: e.target.value })}
-              className="text-sm px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400"
-            >
-              <option value="all">All {f.label}</option>
-              {f.options.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
-            </select>
-          ))}
-          {(search || Object.values(filterValues).some((v) => v !== 'all') || projectFilter !== 'all') && (
+          {filters?.map((f) => {
+            const opts = f.options.length > 0 ? f.options : getDynamicFilterOptions(f.key);
+            return (
+              <select
+                key={f.key}
+                value={filterValues[f.key] || 'all'}
+                onChange={(e) => setFilterValues({ ...filterValues, [f.key]: e.target.value })}
+                className="text-sm px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400"
+              >
+                <option value="all">All {f.label}</option>
+                {opts.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
+              </select>
+            );
+          })}
+          {dateRangeColumn && (
+            <div className="flex items-center gap-1.5">
+              <Calendar size={14} className="text-neutral-400" />
+              <input
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                className="text-sm px-2 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400"
+                placeholder="From"
+              />
+              <span className="text-xs text-neutral-400">to</span>
+              <input
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                className="text-sm px-2 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400"
+                placeholder="To"
+              />
+            </div>
+          )}
+          {hasActiveFilters && (
             <button
-              onClick={() => { setSearch(''); setFilterValues({}); setProjectFilter('all'); }}
+              onClick={() => { setSearch(''); setFilterValues({}); setProjectFilter('all'); setDateFrom(''); setDateTo(''); }}
               className="flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-700"
             >
               <X size={12} /> Clear
@@ -323,29 +476,7 @@ export function DataTableView({
               {allColsForForm.map((col) => (
                 <div key={col.key}>
                   <label className="block text-xs font-medium text-neutral-600 mb-1">{col.label}</label>
-                  {col.type === 'boolean' ? (
-                    <select value={newRow[col.key] ?? 'false'} onChange={(e) => setNewRow({ ...newRow, [col.key]: e.target.value === 'true' })} className="w-full text-sm px-3 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:border-primary-400">
-                      <option value="false">No</option>
-                      <option value="true">Yes</option>
-                    </select>
-                  ) : col.options ? (
-                    <div className="relative">
-                      <select value={newRow[col.key] || ''} onChange={(e) => setNewRow({ ...newRow, [col.key]: e.target.value })} className="w-full appearance-none text-sm px-3 py-2 pr-9 border border-neutral-200 rounded-lg focus:outline-none focus:border-primary-400">
-                        <option value="">Select...</option>
-                        {col.key === 'project_id'
-                          ? projects.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))
-                          : col.options.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
-                      </select>
-                      <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
-                    </div>
-                  ) : (
-                    <input
-                      type={col.type === 'number' || col.type === 'money' ? 'number' : col.type === 'date' ? 'date' : 'text'}
-                      value={newRow[col.key] ?? ''}
-                      onChange={(e) => setNewRow({ ...newRow, [col.key]: e.target.value })}
-                      className="w-full text-sm px-3 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:border-primary-400"
-                    />
-                  )}
+                  {renderFormField(col, newRow, setNewRow)}
                 </div>
               ))}
             </div>
@@ -371,29 +502,7 @@ export function DataTableView({
               {allColsForForm.map((col) => (
                 <div key={col.key}>
                   <label className="block text-xs font-medium text-neutral-600 mb-1">{col.label}</label>
-                  {col.type === 'boolean' ? (
-                    <select value={editRow[col.key] ?? 'false'} onChange={(e) => setEditRow({ ...editRow, [col.key]: e.target.value === 'true' })} className="w-full text-sm px-3 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:border-primary-400">
-                      <option value="false">No</option>
-                      <option value="true">Yes</option>
-                    </select>
-                  ) : col.options ? (
-                    <div className="relative">
-                      <select value={editRow[col.key] || ''} onChange={(e) => setEditRow({ ...editRow, [col.key]: e.target.value })} className="w-full appearance-none text-sm px-3 py-2 pr-9 border border-neutral-200 rounded-lg focus:outline-none focus:border-primary-400">
-                        <option value="">Select...</option>
-                        {col.key === 'project_id'
-                          ? projects.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))
-                          : col.options.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
-                      </select>
-                      <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
-                    </div>
-                  ) : (
-                    <input
-                      type={col.type === 'number' || col.type === 'money' ? 'number' : col.type === 'date' ? 'date' : 'text'}
-                      value={editRow[col.key] ?? ''}
-                      onChange={(e) => setEditRow({ ...editRow, [col.key]: e.target.value })}
-                      className="w-full text-sm px-3 py-2 border border-neutral-200 rounded-lg focus:outline-none focus:border-primary-400"
-                    />
-                  )}
+                  {renderFormField(col, editRow, setEditRow)}
                 </div>
               ))}
             </div>

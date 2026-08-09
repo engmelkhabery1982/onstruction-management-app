@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { LayoutDashboard, FolderKanban, SquareCheck as CheckSquare, DollarSign, Package, ShieldAlert, TrendingUp, CalendarClock, Signature as FileSignature, ClipboardList, Banknote, Receipt, FileText, GitBranch, FolderOpen, FileCheck as FileCheck2, Building2, Menu } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, SquareCheck as CheckSquare, DollarSign, Package, ShieldAlert, TrendingUp, CalendarClock, Signature as FileSignature, ClipboardList, Banknote, Receipt, FileText, GitBranch, FolderOpen, FileCheck as FileCheck2, Building2, Menu, ListOrdered } from 'lucide-react';
 import { useData } from '@/hooks/useData';
 import { Dashboard } from '@/components/Dashboard';
 import { DataTableView, type ColumnDef, type FilterDef } from '@/components/DataTableView';
@@ -12,8 +12,10 @@ const NAV_ITEMS: { key: ViewKey; label: string; icon: IconType; group: string }[
   { key: 'tasks', label: 'Tasks', icon: CheckSquare, group: 'Overview' },
   { key: 'schedule', label: 'Schedule', icon: CalendarClock, group: 'Planning' },
   { key: 'progress', label: 'Progress', icon: TrendingUp, group: 'Planning' },
-  { key: 'costs', label: 'Costs', icon: DollarSign, group: 'Financial' },
+  { key: 'costs', label: 'Cost Control', icon: DollarSign, group: 'Financial' },
+  { key: 'costEntries', label: 'Cost Entries', icon: ListOrdered, group: 'Financial' },
   { key: 'boq', label: 'BOQ', icon: ClipboardList, group: 'Financial' },
+  { key: 'boqItems', label: 'BOQ Items', icon: ListOrdered, group: 'Financial' },
   { key: 'cashflow', label: 'Cash Flow', icon: Banknote, group: 'Financial' },
   { key: 'contracts', label: 'Contracts', icon: FileSignature, group: 'Financial' },
   { key: 'subinvoices', label: 'Sub Invoices', icon: Receipt, group: 'Financial' },
@@ -29,13 +31,14 @@ const PROJECT_STATUSES = ['Planning', 'In Progress', 'On Hold', 'Completed', 'De
 const TASK_STATUSES = ['Not Started', 'In Progress', 'Completed', 'Delayed'];
 const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
 const COST_STATUSES = ['Planned', 'Committed', 'Actual', 'Over Budget'];
+const COST_TYPES = ['Labor', 'Equipment', 'Materials', 'Miscellaneous', 'Other'];
 const PROC_STATUSES = ['Requested', 'Ordered', 'Partially Delivered', 'Delivered'];
 const SAFETY_STATUSES = ['Open', 'Investigating', 'Closed'];
 const SAFETY_SEVERITIES = ['Low', 'Medium', 'High', 'Critical'];
 const SAFETY_TYPES = ['Incident', 'Near Miss', 'Hazard', 'Inspection', 'Violation'];
 const SCHEDULE_STATUSES = ['Not Started', 'In Progress', 'Completed', 'Delayed'];
 const CONTRACT_STATUSES = ['Draft', 'Active', 'Completed', 'Terminated'];
-const CONTRACT_TYPES = ['Lump Sum', 'Unit Price', 'Cost Plus', 'Time & Materials', 'Design-Build'];
+const CONTRACT_TYPES = ['Lump Sum', 'Unit Price', 'Cost Plus', 'Time & Materials', 'Design-Build', 'GMP', 'Cost Reimbursable'];
 const INVOICE_STATUSES = ['Draft', 'Submitted', 'Approved', 'Rejected', 'Paid'];
 const PAYMENT_STATUSES = ['Unpaid', 'Partially Paid', 'Paid'];
 const VARIATION_STATUSES = ['Draft', 'Submitted', 'Pending', 'Approved', 'Rejected'];
@@ -44,15 +47,19 @@ const DOC_STATUSES = ['Draft', 'Under Review', 'Approved', 'Current', 'Supersede
 const DOC_TYPES = ['Drawing', 'Specification', 'Report', 'Permit', 'Contract', 'Invoice', 'Plan', 'Other'];
 const WIR_STATUSES = ['Pending', 'Approved', 'Rejected'];
 const WIR_RESULTS = ['Pass', 'Fail', 'Conditional Pass'];
+const BOQ_CLASSIFICATIONS = ['Main', 'Subcontractor'];
 
 const PROJECT_COLUMNS: ColumnDef[] = [
+  { key: 'project_code', label: 'Project Code', type: 'text', editable: true },
+  { key: 'boq_code', label: 'BOQ Code', type: 'text', editable: true },
   { key: 'name', label: 'Project Name', type: 'text', editable: true },
   { key: 'client', label: 'Client', type: 'text', editable: true },
   { key: 'location', label: 'Location', type: 'text', editable: true },
   { key: 'category', label: 'Category', type: 'text', editable: true, options: ['Residential', 'Commercial', 'Industrial', 'Infrastructure', 'Renovation'] },
   { key: 'status', label: 'Status', type: 'status', editable: true, options: PROJECT_STATUSES },
   { key: 'budget', label: 'Budget', type: 'money', editable: true },
-  { key: 'spent', label: 'Spent', type: 'money', editable: true },
+  { key: 'spent', label: 'Spent', type: 'money' },
+  { key: 'total_value', label: 'Total Value', type: 'money' },
   { key: 'progress', label: 'Progress', type: 'progress', editable: true },
   { key: 'project_manager', label: 'Manager', type: 'text', editable: true },
   { key: 'contractor', label: 'Contractor', type: 'text', editable: true },
@@ -73,12 +80,30 @@ const TASK_COLUMNS: ColumnDef[] = [
 ];
 
 const COST_COLUMNS: ColumnDef[] = [
-  { key: 'category', label: 'Category', type: 'text', editable: true },
+  { key: 'project_code', label: 'Project Code', type: 'text', editable: true },
+  { key: 'item_code', label: 'Item Code', type: 'text', editable: true },
+  { key: 'company_name', label: 'Company', type: 'text', editable: true },
+  { key: 'boq_item_code', label: 'BOQ Item Code', type: 'text', editable: true, autoFillFrom: 'boqItems', autoFillKey: 'item_code' },
+  { key: 'boq_item_name', label: 'BOQ Item Name', type: 'text' },
+  { key: 'category', label: 'Category', type: 'text', editable: true, options: ['Labor', 'Materials', 'Equipment', 'Subcontractor', 'Overhead', 'Other'] },
   { key: 'description', label: 'Description', type: 'text', editable: true },
-  { key: 'planned', label: 'Planned', type: 'money', editable: true },
-  { key: 'actual', label: 'Actual', type: 'money', editable: true },
+  { key: 'planned', label: 'Planned', type: 'money' },
+  { key: 'actual', label: 'Actual', type: 'money' },
   { key: 'committed', label: 'Committed', type: 'money', editable: true },
   { key: 'status', label: 'Status', type: 'status', editable: true, options: COST_STATUSES },
+];
+
+const COST_ENTRY_COLUMNS: ColumnDef[] = [
+  { key: 'project_code', label: 'Project Code', type: 'text', editable: true },
+  { key: 'boq_code', label: 'BOQ Code', type: 'text', editable: true },
+  { key: 'company_name', label: 'Company', type: 'text', editable: true },
+  { key: 'boq_item_code', label: 'BOQ Item Code', type: 'text', editable: true, autoFillFrom: 'boqItems', autoFillKey: 'item_code' },
+  { key: 'boq_item_name', label: 'BOQ Item Name', type: 'text' },
+  { key: 'date', label: 'Date', type: 'date', editable: true },
+  { key: 'cost_type', label: 'Cost Type', type: 'text', editable: true, options: COST_TYPES },
+  { key: 'invoice_number', label: 'Invoice #', type: 'text', editable: true },
+  { key: 'payment_order_number', label: 'Payment Order #', type: 'text', editable: true },
+  { key: 'amount', label: 'Amount', type: 'money', editable: true },
 ];
 
 const PROCUREMENT_COLUMNS: ColumnDef[] = [
@@ -87,7 +112,7 @@ const PROCUREMENT_COLUMNS: ColumnDef[] = [
   { key: 'quantity', label: 'Qty', type: 'number', editable: true },
   { key: 'unit', label: 'Unit', type: 'text', editable: true },
   { key: 'unit_cost', label: 'Unit Cost', type: 'money', editable: true },
-  { key: 'total_cost', label: 'Total', type: 'money', editable: true },
+  { key: 'total_cost', label: 'Total', type: 'money' },
   { key: 'status', label: 'Status', type: 'status', editable: true, options: PROC_STATUSES },
   { key: 'order_date', label: 'Order Date', type: 'date', editable: true },
   { key: 'delivery_date', label: 'Delivery Date', type: 'date', editable: true },
@@ -105,8 +130,16 @@ const SAFETY_COLUMNS: ColumnDef[] = [
 ];
 
 const PROGRESS_COLUMNS: ColumnDef[] = [
+  { key: 'project_code', label: 'Project Code', type: 'text', editable: true },
+  { key: 'company_name', label: 'Company', type: 'text', editable: true },
   { key: 'date', label: 'Date', type: 'date', editable: true },
   { key: 'area', label: 'Area', type: 'text', editable: true },
+  { key: 'prev_value', label: 'Previous Value', type: 'money' },
+  { key: 'prev_pct', label: 'Previous %', type: 'progress' },
+  { key: 'current_value', label: 'Current Value', type: 'money', editable: true },
+  { key: 'current_pct', label: 'Current %', type: 'progress' },
+  { key: 'total_value', label: 'Total Value', type: 'money' },
+  { key: 'total_pct', label: 'Total %', type: 'progress' },
   { key: 'percent_complete', label: '% Complete', type: 'progress', editable: true },
   { key: 'weather', label: 'Weather', type: 'text', editable: true },
   { key: 'workers', label: 'Workers', type: 'number', editable: true },
@@ -114,15 +147,23 @@ const PROGRESS_COLUMNS: ColumnDef[] = [
 ];
 
 const SCHEDULE_COLUMNS: ColumnDef[] = [
+  { key: 'project_code', label: 'Project Code', type: 'text', editable: true },
+  { key: 'boq_code', label: 'BOQ Code', type: 'text', editable: true },
+  { key: 'boq_item_code', label: 'BOQ Item Code', type: 'text', editable: true, autoFillFrom: 'boqItems', autoFillKey: 'item_code' },
+  { key: 'boq_item_name', label: 'BOQ Item Name', type: 'text' },
   { key: 'activity', label: 'Activity', type: 'text', editable: true },
   { key: 'start_date', label: 'Start', type: 'date', editable: true },
   { key: 'end_date', label: 'End', type: 'date', editable: true },
-  { key: 'duration_days', label: 'Duration (days)', type: 'number', editable: true },
+  { key: 'duration_days', label: 'Duration (days)', type: 'number' },
+  { key: 'planned_value', label: 'Planned Value', type: 'money', editable: true },
   { key: 'progress', label: 'Progress', type: 'progress', editable: true },
+  { key: 'predecessor_item', label: 'Predecessor Item', type: 'text', editable: true },
   { key: 'critical_path', label: 'Critical Path', type: 'boolean', editable: true },
+  { key: 'is_critical_item', label: 'Critical Item', type: 'boolean', editable: true },
   { key: 'responsible', label: 'Responsible', type: 'text', editable: true },
   { key: 'status', label: 'Status', type: 'status', editable: true, options: SCHEDULE_STATUSES },
   { key: 'predecessors', label: 'Predecessors', type: 'text', editable: true },
+  { key: 'notes', label: 'Notes', type: 'text', editable: true },
 ];
 
 const CONTRACT_COLUMNS: ColumnDef[] = [
@@ -137,14 +178,26 @@ const CONTRACT_COLUMNS: ColumnDef[] = [
   { key: 'signed_date', label: 'Signed Date', type: 'date', editable: true },
 ];
 
-const BOQ_COLUMNS: ColumnDef[] = [
-  { key: 'item_code', label: 'Code', type: 'text', editable: true },
+const BOQ_HEADER_COLUMNS: ColumnDef[] = [
+  { key: 'project_code', label: 'Project Code', type: 'text', editable: true },
+  { key: 'boq_code', label: 'BOQ Code', type: 'text', editable: true },
+  { key: 'classification', label: 'Classification', type: 'text', editable: true, options: BOQ_CLASSIFICATIONS },
+  { key: 'company_name', label: 'Company Name', type: 'text', editable: true },
+  { key: 'contract_type', label: 'Contract Type', type: 'text', editable: true, options: CONTRACT_TYPES },
+  { key: 'total_value', label: 'Total Value', type: 'money' },
+];
+
+const BOQ_ITEM_COLUMNS: ColumnDef[] = [
+  { key: 'project_code', label: 'Project Code', type: 'text', editable: true },
+  { key: 'boq_code', label: 'BOQ Code', type: 'text', editable: true },
+  { key: 'item_code', label: 'Item Code', type: 'text', editable: true },
+  { key: 'item_name', label: 'Item Name', type: 'text', editable: true },
   { key: 'description', label: 'Description', type: 'text', editable: true },
-  { key: 'category', label: 'Category', type: 'text', editable: true },
+  { key: 'category', label: 'Category', type: 'text', editable: true, options: ['Earthworks', 'Concrete', 'Steel', 'Masonry', 'Finishes', 'MEP', 'Other'] },
   { key: 'unit', label: 'Unit', type: 'text', editable: true },
   { key: 'quantity', label: 'Qty', type: 'number', editable: true },
   { key: 'unit_rate', label: 'Unit Rate', type: 'money', editable: true },
-  { key: 'amount', label: 'Amount', type: 'money', editable: true },
+  { key: 'amount', label: 'Amount', type: 'money' },
 ];
 
 const CASHFLOW_COLUMNS: ColumnDef[] = [
@@ -153,7 +206,7 @@ const CASHFLOW_COLUMNS: ColumnDef[] = [
   { key: 'category', label: 'Category', type: 'text', editable: true },
   { key: 'inflow', label: 'Inflow', type: 'money', editable: true },
   { key: 'outflow', label: 'Outflow', type: 'money', editable: true },
-  { key: 'net', label: 'Net', type: 'money', editable: true },
+  { key: 'net', label: 'Net', type: 'money' },
   { key: 'cumulative_balance', label: 'Cumulative', type: 'money', editable: true },
 ];
 
@@ -205,47 +258,60 @@ const DOC_COLUMNS: ColumnDef[] = [
 ];
 
 const WIR_COLUMNS: ColumnDef[] = [
+  { key: 'project_code', label: 'Project Code', type: 'text', editable: true },
+  { key: 'boq_code', label: 'BOQ Code', type: 'text', editable: true },
+  { key: 'item_code', label: 'Item Code', type: 'text', editable: true, autoFillFrom: 'boqItems', autoFillKey: 'item_code' },
+  { key: 'item_name', label: 'Item Name', type: 'text' },
+  { key: 'item_description', label: 'Description', type: 'text' },
+  { key: 'company_name', label: 'Company', type: 'text', editable: true },
   { key: 'wir_number', label: 'WIR #', type: 'text', editable: true },
   { key: 'area', label: 'Area', type: 'text', editable: true },
   { key: 'work_type', label: 'Work Type', type: 'text', editable: true },
   { key: 'inspection_date', label: 'Inspection Date', type: 'date', editable: true },
   { key: 'inspector', label: 'Inspector', type: 'text', editable: true },
   { key: 'result', label: 'Result', type: 'status', editable: true, options: WIR_RESULTS },
+  { key: 'unit', label: 'Unit', type: 'text' },
+  { key: 'quantity', label: 'Qty', type: 'number' },
+  { key: 'unit_price', label: 'Unit Price', type: 'money' },
+  { key: 'item_amount', label: 'Item Amount', type: 'money' },
+  { key: 'completion_pct', label: 'Completion %', type: 'progress' },
   { key: 'remarks', label: 'Remarks', type: 'text', editable: true },
   { key: 'status', label: 'Status', type: 'status', editable: true, options: WIR_STATUSES },
 ];
 
-const VIEW_CONFIGS: Record<string, { columns: ColumnDef[]; filters?: FilterDef[]; showProjectFilter?: boolean }> = {
-  projects: { columns: PROJECT_COLUMNS, filters: [{ key: 'status', label: 'Status', options: PROJECT_STATUSES }, { key: 'category', label: 'Category', options: ['Residential', 'Commercial', 'Industrial', 'Infrastructure', 'Renovation'] }] },
-  tasks: { columns: TASK_COLUMNS, filters: [{ key: 'status', label: 'Status', options: TASK_STATUSES }, { key: 'priority', label: 'Priority', options: PRIORITIES }], showProjectFilter: true },
+const VIEW_CONFIGS: Record<string, { columns: ColumnDef[]; filters?: FilterDef[]; showProjectFilter?: boolean; dateRangeColumn?: string }> = {
+  projects: { columns: PROJECT_COLUMNS, filters: [{ key: 'status', label: 'Status', options: PROJECT_STATUSES }, { key: 'category', label: 'Category', options: ['Residential', 'Commercial', 'Industrial', 'Infrastructure', 'Renovation'] }], dateRangeColumn: 'start_date' },
+  tasks: { columns: TASK_COLUMNS, filters: [{ key: 'status', label: 'Status', options: TASK_STATUSES }, { key: 'priority', label: 'Priority', options: PRIORITIES }], showProjectFilter: true, dateRangeColumn: 'start_date' },
   costs: { columns: COST_COLUMNS, filters: [{ key: 'status', label: 'Status', options: COST_STATUSES }, { key: 'category', label: 'Category', options: ['Labor', 'Materials', 'Equipment', 'Subcontractor', 'Overhead', 'Other'] }], showProjectFilter: true },
-  procurement: { columns: PROCUREMENT_COLUMNS, filters: [{ key: 'status', label: 'Status', options: PROC_STATUSES }], showProjectFilter: true },
-  safety: { columns: SAFETY_COLUMNS, filters: [{ key: 'status', label: 'Status', options: SAFETY_STATUSES }, { key: 'severity', label: 'Severity', options: SAFETY_SEVERITIES }, { key: 'type', label: 'Type', options: SAFETY_TYPES }], showProjectFilter: true },
-  progress: { columns: PROGRESS_COLUMNS, showProjectFilter: true },
-  schedule: { columns: SCHEDULE_COLUMNS, filters: [{ key: 'status', label: 'Status', options: SCHEDULE_STATUSES }], showProjectFilter: true },
-  contracts: { columns: CONTRACT_COLUMNS, filters: [{ key: 'status', label: 'Status', options: CONTRACT_STATUSES }, { key: 'contract_type', label: 'Type', options: CONTRACT_TYPES }], showProjectFilter: true },
-  boq: { columns: BOQ_COLUMNS, filters: [{ key: 'category', label: 'Category', options: ['Earthworks', 'Concrete', 'Steel', 'Masonry', 'Finishes', 'MEP', 'Other'] }], showProjectFilter: true },
-  cashflow: { columns: CASHFLOW_COLUMNS, showProjectFilter: true },
-  subinvoices: { columns: SUBINV_COLUMNS, filters: [{ key: 'status', label: 'Status', options: INVOICE_STATUSES }, { key: 'payment_status', label: 'Payment', options: PAYMENT_STATUSES }], showProjectFilter: true },
-  clientinvoices: { columns: CLIENTINV_COLUMNS, filters: [{ key: 'status', label: 'Status', options: INVOICE_STATUSES }, { key: 'payment_status', label: 'Payment', options: PAYMENT_STATUSES }], showProjectFilter: true },
-  variations: { columns: VARIATION_COLUMNS, filters: [{ key: 'status', label: 'Status', options: VARIATION_STATUSES }, { key: 'type', label: 'Type', options: VARIATION_TYPES }], showProjectFilter: true },
-  documents: { columns: DOC_COLUMNS, filters: [{ key: 'status', label: 'Status', options: DOC_STATUSES }, { key: 'document_type', label: 'Type', options: DOC_TYPES }], showProjectFilter: true },
-  wir: { columns: WIR_COLUMNS, filters: [{ key: 'status', label: 'Status', options: WIR_STATUSES }, { key: 'result', label: 'Result', options: WIR_RESULTS }], showProjectFilter: true },
+  costEntries: { columns: COST_ENTRY_COLUMNS, filters: [{ key: 'cost_type', label: 'Cost Type', options: COST_TYPES }], showProjectFilter: true, dateRangeColumn: 'date' },
+  procurement: { columns: PROCUREMENT_COLUMNS, filters: [{ key: 'status', label: 'Status', options: PROC_STATUSES }], showProjectFilter: true, dateRangeColumn: 'order_date' },
+  safety: { columns: SAFETY_COLUMNS, filters: [{ key: 'status', label: 'Status', options: SAFETY_STATUSES }, { key: 'severity', label: 'Severity', options: SAFETY_SEVERITIES }, { key: 'type', label: 'Type', options: SAFETY_TYPES }], showProjectFilter: true, dateRangeColumn: 'date' },
+  progress: { columns: PROGRESS_COLUMNS, filters: [{ key: 'company_name', label: 'Company', options: [] }], showProjectFilter: true, dateRangeColumn: 'date' },
+  schedule: { columns: SCHEDULE_COLUMNS, filters: [{ key: 'status', label: 'Status', options: SCHEDULE_STATUSES }, { key: 'is_critical_item', label: 'Critical', options: ['true', 'false'] }], showProjectFilter: true, dateRangeColumn: 'start_date' },
+  contracts: { columns: CONTRACT_COLUMNS, filters: [{ key: 'status', label: 'Status', options: CONTRACT_STATUSES }, { key: 'contract_type', label: 'Type', options: CONTRACT_TYPES }], showProjectFilter: true, dateRangeColumn: 'start_date' },
+  boq: { columns: BOQ_HEADER_COLUMNS, filters: [{ key: 'classification', label: 'Classification', options: BOQ_CLASSIFICATIONS }, { key: 'contract_type', label: 'Contract Type', options: CONTRACT_TYPES }], showProjectFilter: true },
+  boqItems: { columns: BOQ_ITEM_COLUMNS, filters: [{ key: 'category', label: 'Category', options: ['Earthworks', 'Concrete', 'Steel', 'Masonry', 'Finishes', 'MEP', 'Other'] }, { key: 'boq_code', label: 'BOQ Code', options: [] }], showProjectFilter: true },
+  cashflow: { columns: CASHFLOW_COLUMNS, showProjectFilter: true, dateRangeColumn: 'date' },
+  subinvoices: { columns: SUBINV_COLUMNS, filters: [{ key: 'status', label: 'Status', options: INVOICE_STATUSES }, { key: 'payment_status', label: 'Payment', options: PAYMENT_STATUSES }], showProjectFilter: true, dateRangeColumn: 'invoice_date' },
+  clientinvoices: { columns: CLIENTINV_COLUMNS, filters: [{ key: 'status', label: 'Status', options: INVOICE_STATUSES }, { key: 'payment_status', label: 'Payment', options: PAYMENT_STATUSES }], showProjectFilter: true, dateRangeColumn: 'invoice_date' },
+  variations: { columns: VARIATION_COLUMNS, filters: [{ key: 'status', label: 'Status', options: VARIATION_STATUSES }, { key: 'type', label: 'Type', options: VARIATION_TYPES }], showProjectFilter: true, dateRangeColumn: 'approved_date' },
+  documents: { columns: DOC_COLUMNS, filters: [{ key: 'status', label: 'Status', options: DOC_STATUSES }, { key: 'document_type', label: 'Type', options: DOC_TYPES }], showProjectFilter: true, dateRangeColumn: 'upload_date' },
+  wir: { columns: WIR_COLUMNS, filters: [{ key: 'status', label: 'Status', options: WIR_STATUSES }, { key: 'result', label: 'Result', options: WIR_RESULTS }], showProjectFilter: true, dateRangeColumn: 'inspection_date' },
 };
 
 const TABLE_NAMES: Record<string, string> = {
-  projects: 'projects', tasks: 'tasks', costs: 'costs', procurement: 'procurement',
-  safety: 'safety', progress: 'progress_entries', schedule: 'schedules',
-  contracts: 'contracts', boq: 'boq_items', cashflow: 'cash_flow',
-  subinvoices: 'subcontractor_invoices', clientinvoices: 'client_invoices',
+  projects: 'projects', tasks: 'tasks', costs: 'costs', costEntries: 'cost_entries',
+  procurement: 'procurement', safety: 'safety', progress: 'progress_entries',
+  schedule: 'schedules', contracts: 'contracts', boq: 'boq_headers', boqItems: 'boq_items',
+  cashflow: 'cash_flow', subinvoices: 'subcontractor_invoices', clientinvoices: 'client_invoices',
   variations: 'variations', documents: 'documents', wir: 'wir_entries',
 };
 
 const VIEW_TITLES: Record<string, string> = {
-  projects: 'Projects', tasks: 'Tasks', costs: 'Costs', procurement: 'Procurement',
-  safety: 'Safety Records', progress: 'Progress Entries', schedule: 'Schedule',
-  contracts: 'Contracts', boq: 'Bill of Quantities', cashflow: 'Cash Flow',
-  subinvoices: 'Subcontractor Invoices', clientinvoices: 'Client Invoices',
+  projects: 'Projects', tasks: 'Tasks', costs: 'Cost Control', costEntries: 'Cost Entries',
+  procurement: 'Procurement', safety: 'Safety Records', progress: 'Progress Entries',
+  schedule: 'Schedule', contracts: 'Contracts', boq: 'BOQ Headers', boqItems: 'BOQ Items',
+  cashflow: 'Cash Flow', subinvoices: 'Subcontractor Invoices', clientinvoices: 'Client Invoices',
   variations: 'Variations', documents: 'Documents', wir: 'Work Inspection Reports',
 };
 
@@ -263,11 +329,13 @@ export default function App() {
           projects={data.projects}
           tasks={data.tasks}
           costs={data.costs}
+          costEntries={data.costEntries}
           procurement={data.procurement}
           safety={data.safety}
           progress={data.progress}
           schedules={data.schedules}
           contracts={data.contracts}
+          boqHeaders={data.boqHeaders}
           boqItems={data.boqItems}
           cashFlow={data.cashFlow}
           subInvoices={data.subInvoices}
@@ -296,6 +364,8 @@ export default function App() {
         filters={config.filters}
         projects={data.projects as Project[]}
         showProjectFilter={config.showProjectFilter}
+        dateRangeColumn={config.dateRangeColumn}
+        boqItems={data.boqItems}
         onChanged={data.reload}
       />
     );
