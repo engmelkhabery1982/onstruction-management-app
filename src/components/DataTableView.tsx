@@ -58,21 +58,46 @@ function fmtMoney(n: number): string {
   return `${n < 0 ? '-' : ''}$${v.toFixed(0)}`;
 }
 
+function renderCell(value: any, col: ColumnDef): React.ReactNode {
+  if (value === null || value === undefined || value === '') return <span className="text-neutral-300">—</span>;
+  switch (col.type) {
+    case 'money': return <span className="font-medium text-neutral-700">{fmtMoney(Number(value))}</span>;
+    case 'number': return <span className="text-neutral-600">{Number(value).toLocaleString()}</span>;
+    case 'date': return <span className="text-neutral-500 text-sm">{new Date(value).toLocaleDateString()}</span>;
+    case 'status':
+      return <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full border ${statusColor(String(value))}`}>{value}</span>;
+    case 'progress':
+      return (
+        <div className="flex items-center gap-2">
+          <div className="flex-1 h-1.5 bg-neutral-100 rounded-full overflow-hidden min-w-12">
+            <div className="h-full bg-primary-500 rounded-full" style={{ width: `${value}%` }} />
+          </div>
+          <span className="text-xs text-neutral-500 w-8">{value}%</span>
+        </div>
+      );
+    case 'boolean':
+      return <span className={value ? 'text-success-600 font-medium' : 'text-neutral-400'}>{value ? 'Yes' : 'No'}</span>;
+    default: return <span className="text-neutral-700 text-sm">{String(value)}</span>;
+  }
+}
+
 function InlineCellEditor({
-  col, value, onCommit, onCancel, projects,
+  col, value, onCommit, onCancel, projects, autoFillOptions,
 }: {
   col: ColumnDef;
   value: any;
   onCommit: (v: any) => void;
   onCancel: () => void;
   projects: Project[];
+  autoFillOptions?: string[];
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const selectRef = useRef<HTMLSelectElement>(null);
   const valRef = useRef<any>(value);
 
   useEffect(() => {
-    if (col.type === 'select' || col.type === 'status' || col.type === 'boolean') {
+    const isDropdown = col.type === 'select' || col.type === 'status' || col.type === 'boolean' || (autoFillOptions && autoFillOptions.length > 0 && (!col.options || col.options.length === 0));
+    if (isDropdown) {
       selectRef.current?.focus();
     } else {
       inputRef.current?.focus();
@@ -109,6 +134,23 @@ function InlineCellEditor({
     );
   }
 
+  if (autoFillOptions && autoFillOptions.length > 0 && (!col.options || col.options.length === 0)) {
+    return (
+      <select
+        ref={selectRef}
+        value={valRef.current || ''}
+        onChange={(e) => { valRef.current = e.target.value; onCommit(e.target.value); }}
+        onClick={stop}
+        onMouseDown={stop}
+        onKeyDown={handleKeyDown}
+        className={baseClass}
+      >
+        <option value="">—</option>
+        {autoFillOptions.map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    );
+  }
+
   if (col.type === 'boolean') {
     return (
       <select
@@ -141,49 +183,6 @@ function InlineCellEditor({
   );
 }
 
-function ExcelCell({ value, col, onClick, isActive, children }: {
-  value: any;
-  col: ColumnDef;
-  onClick: () => void;
-  isActive: boolean;
-  children?: React.ReactNode;
-}) {
-  const isDropdown = col.type === 'select' || col.type === 'status' || col.type === 'boolean';
-  return (
-    <td
-      onClick={onClick}
-      className={`px-2 py-1.5 whitespace-nowrap border border-neutral-200 text-sm ${
-        isActive ? 'ring-2 ring-inset ring-primary-500 bg-primary-50' : 'hover:bg-neutral-50'
-      } ${isDropdown ? 'cursor-pointer' : 'cursor-text'}`}
-    >
-      {children ?? renderCell(value, col)}
-    </td>
-  );
-}
-
-function renderCell(value: any, col: ColumnDef): React.ReactNode {
-  if (value === null || value === undefined || value === '') return <span className="text-neutral-300">—</span>;
-  switch (col.type) {
-    case 'money': return <span className="font-medium text-neutral-700">{fmtMoney(Number(value))}</span>;
-    case 'number': return <span className="text-neutral-600">{Number(value).toLocaleString()}</span>;
-    case 'date': return <span className="text-neutral-500 text-sm">{new Date(value).toLocaleDateString()}</span>;
-    case 'status':
-      return <span className={`inline-block text-xs font-medium px-2 py-0.5 rounded-full border ${statusColor(String(value))}`}>{value}</span>;
-    case 'progress':
-      return (
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-1.5 bg-neutral-100 rounded-full overflow-hidden min-w-12">
-            <div className="h-full bg-primary-500 rounded-full" style={{ width: `${value}%` }} />
-          </div>
-          <span className="text-xs text-neutral-500 w-8">{value}%</span>
-        </div>
-      );
-    case 'boolean':
-      return <span className={value ? 'text-success-600 font-medium' : 'text-neutral-400'}>{value ? 'Yes' : 'No'}</span>;
-    default: return <span className="text-neutral-700 text-sm">{String(value)}</span>;
-  }
-}
-
 export function DataTableView({
   tableName, title, icon: Icon, data, columns, filters, projects, showProjectFilter, dateRangeColumn, boqItems, onChanged, autoFillOptions,
 }: DataTableViewProps) {
@@ -202,8 +201,12 @@ export function DataTableView({
   const [importResult, setImportResult] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
   const [inlineEdit, setInlineEdit] = useState<{ id: string; key: string } | null>(null);
   const [inlineValue, setInlineValue] = useState<any>(null);
+  const [sortField, setSortField] = useState<string | null>(null);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const printableRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const savedScroll = useRef<number>(0);
 
   const filtered = useMemo(() => {
     let result = [...data];
@@ -214,22 +217,14 @@ export function DataTableView({
       if (val !== 'all') result = result.filter((r) => String(r[key]) === val);
     });
     if (dateRangeColumn && dateFrom) {
-      result = result.filter((r) => {
-        const d = r[dateRangeColumn];
-        return d && d >= dateFrom;
-      });
+      result = result.filter((r) => { const d = r[dateRangeColumn]; return d && d >= dateFrom; });
     }
     if (dateRangeColumn && dateTo) {
-      result = result.filter((r) => {
-        const d = r[dateRangeColumn];
-        return d && d <= dateTo;
-      });
+      result = result.filter((r) => { const d = r[dateRangeColumn]; return d && d <= dateTo; });
     }
     if (search) {
       const q = search.toLowerCase();
-      result = result.filter((r) =>
-        columns.some((c) => String(r[c.key] || '').toLowerCase().includes(q))
-      );
+      result = result.filter((r) => columns.some((c) => String(r[c.key] || '').toLowerCase().includes(q)));
     }
     return result;
   }, [data, search, filterValues, projectFilter, columns, showProjectFilter, dateRangeColumn, dateFrom, dateTo]);
@@ -251,11 +246,57 @@ export function DataTableView({
     return filtered;
   }, [filtered, tableName]);
 
+  const sortedData = useMemo(() => {
+    if (!sortField) return displayData;
+    return [...displayData].sort((a, b) => {
+      const col = columns.find((c) => c.key === sortField);
+      const aVal = a[sortField];
+      const bVal = b[sortField];
+      if (aVal === null || aVal === undefined || aVal === '') return 1;
+      if (bVal === null || bVal === undefined || bVal === '') return -1;
+      if (col?.type === 'number' || col?.type === 'money') {
+        return sortDir === 'asc' ? Number(aVal) - Number(bVal) : Number(bVal) - Number(aVal);
+      }
+      return sortDir === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
+    });
+  }, [displayData, sortField, sortDir, columns]);
+
+  const columnSums = useMemo(() => {
+    const sums: Record<string, number> = {};
+    columns.forEach((col) => {
+      if (col.type === 'number' || col.type === 'money') {
+        sums[col.key] = displayData.reduce((sum, row) => sum + (Number(row[col.key]) || 0), 0);
+      }
+    });
+    return sums;
+  }, [displayData, columns]);
+
   const projectMap = useMemo(() => {
     const m: Record<string, string> = {};
     projects.forEach((p) => { m[p.id] = p.name; });
     return m;
   }, [projects]);
+
+  useEffect(() => {
+    if (scrollRef.current && savedScroll.current) {
+      scrollRef.current.scrollTop = savedScroll.current;
+      savedScroll.current = 0;
+    }
+  }, [data]);
+
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = 0;
+  }, [search, filterValues, projectFilter, dateFrom, dateTo]);
+
+  function toggleSort(key: string) {
+    if (sortField === key) {
+      if (sortDir === 'asc') setSortDir('desc');
+      else { setSortField(null); setSortDir('asc'); }
+    } else {
+      setSortField(key);
+      setSortDir('asc');
+    }
+  }
 
   function getDynamicFilterOptions(key: string): string[] {
     const vals = [...new Set(data.map((r) => String(r[key])).filter((v) => v && v !== 'null' && v !== 'undefined'))];
@@ -277,8 +318,6 @@ export function DataTableView({
         } else {
           out[key] = val;
         }
-      } else if (key === 'project_id') {
-        out[key] = val;
       } else {
         out[key] = val;
       }
@@ -312,21 +351,17 @@ export function DataTableView({
     const match = boqItems.find((b) => b.item_code === itemCode || b.id === itemCode);
     if (!match) return;
     const updates: Record<string, any> = { ...row };
-    const trySet = (key: string, val: any) => {
-      const c = columns.find((c) => c.key === key);
-      if (c && !c.editable) updates[key] = val;
-    };
-    trySet('item_name', match.item_name || match.description || '');
-    trySet('boq_item_name', match.item_name || match.description || '');
-    trySet('item_desc', match.item_name || match.description || '');
-    trySet('item_description', match.description || '');
-    trySet('unit', match.unit || '');
-    trySet('quantity', match.quantity || 0);
-    trySet('unit_rate', match.unit_rate || 0);
-    trySet('unit_price', match.unit_rate || 0);
-    trySet('boq_code', match.boq_code || '');
-    trySet('project_code', match.project_code || '');
-    if (!updates.amount && (updates.quantity || updates.unit_rate)) {
+    updates.item_name = match.item_name || match.description || '';
+    updates.boq_item_name = match.item_name || match.description || '';
+    updates.item_desc = match.item_name || match.description || '';
+    updates.item_description = match.description || '';
+    updates.unit = match.unit || '';
+    updates.quantity = match.quantity || 0;
+    updates.unit_rate = match.unit_rate || 0;
+    updates.unit_price = match.unit_rate || 0;
+    updates.boq_code = match.boq_code || '';
+    updates.project_code = match.project_code || '';
+    if (updates.quantity && updates.unit_rate) {
       updates.amount = (Number(updates.quantity) || 0) * (Number(updates.unit_rate) || 0);
     }
     setRow(updates);
@@ -339,16 +374,17 @@ export function DataTableView({
     const match = data.find((r) => r[changedKey] === selected);
     if (!match) return;
     const updates: Record<string, any> = { ...row };
-    const trySet = (key: string) => {
-      const c = columns.find((c) => c.key === key);
-      if (c && !c.editable && match[key] !== undefined) updates[key] = match[key];
-    };
-    columns.forEach((c) => { if (c.key !== changedKey && c.key !== 'id' && c.key !== 'created_at') trySet(c.key); });
+    columns.forEach((c) => {
+      if (c.key !== changedKey && c.key !== 'id' && c.key !== 'created_at' && match[c.key] !== undefined) {
+        updates[c.key] = match[c.key];
+      }
+    });
     setRow(updates);
   }
 
   async function handleAdd() {
     setSaving(true);
+    savedScroll.current = scrollRef.current?.scrollTop || 0;
     const { error } = await supabase.from(tableName).insert([coerceTypes(newRow)]);
     setSaving(false);
     if (error) { alert(`Error: ${error.message}`); return; }
@@ -360,6 +396,7 @@ export function DataTableView({
   async function handleEdit() {
     if (!editingId) return;
     setSaving(true);
+    savedScroll.current = scrollRef.current?.scrollTop || 0;
     const { error } = await supabase.from(tableName).update(coerceTypes(editRow)).eq('id', editingId);
     setSaving(false);
     if (error) { alert(`Error: ${error.message}`); return; }
@@ -368,9 +405,7 @@ export function DataTableView({
     onChanged();
   }
 
-  function handleImportClick() {
-    fileInputRef.current?.click();
-  }
+  function handleImportClick() { fileInputRef.current?.click(); }
 
   async function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -405,11 +440,8 @@ export function DataTableView({
       for (let i = 0; i < mapped.length; i += BATCH) {
         const batch = mapped.slice(i, i + BATCH);
         const { error } = await supabase.from(tableName).insert(batch);
-        if (error) {
-          errors.push(`Rows ${i + 1}-${i + batch.length}: ${error.message}`);
-        } else {
-          success += batch.length;
-        }
+        if (error) { errors.push(`Rows ${i + 1}-${i + batch.length}: ${error.message}`); }
+        else { success += batch.length; }
       }
       setImportResult({ success, failed: mapped.length - success, errors });
       onChanged();
@@ -420,9 +452,7 @@ export function DataTableView({
     e.target.value = '';
   }
 
-  function handlePrint() {
-    window.print();
-  }
+  function handlePrint() { window.print(); }
 
   function downloadExcelTemplate() {
     const headerRow: Record<string, string> = {};
@@ -441,13 +471,14 @@ export function DataTableView({
 
   async function commitInlineEdit(commitValue?: any) {
     if (!inlineEdit) return;
+    savedScroll.current = scrollRef.current?.scrollTop || 0;
     const { id, key } = inlineEdit;
     const col = columns.find((c) => c.key === key);
     let val = commitValue !== undefined ? commitValue : inlineValue;
     if (col) {
       if (col.type === 'number' || col.type === 'money') {
         val = val === '' || val === null ? null : parseFloat(String(val).replace(/[^0-9.\-]/g, ''));
-        if (isNaN(val)) val = null;
+        if (isNaN(val as number)) val = null;
       } else if (col.type === 'boolean') {
         val = val === true || val === 'true' || val === 1 || val === '1';
       } else if (col.type === 'progress') {
@@ -463,21 +494,16 @@ export function DataTableView({
     setInlineEdit(null);
     setInlineValue(null);
     const { error } = await supabase.from(tableName).update({ [key]: val }).eq('id', id);
-    if (error) {
-      alert(`Failed to update: ${error.message}`);
-    } else {
-      onChanged();
-    }
+    if (error) { alert(`Failed to update: ${error.message}`); }
+    else { onChanged(); }
   }
 
-  function cancelInlineEdit() {
-    setInlineEdit(null);
-    setInlineValue(null);
-  }
+  function cancelInlineEdit() { setInlineEdit(null); setInlineValue(null); }
 
   async function handleDelete() {
     if (!deleteId) return;
     setSaving(true);
+    savedScroll.current = scrollRef.current?.scrollTop || 0;
     const { error } = await supabase.from(tableName).delete().eq('id', deleteId);
     setSaving(false);
     if (error) { alert(`Error: ${error.message}`); return; }
@@ -485,14 +511,11 @@ export function DataTableView({
     onChanged();
   }
 
-  function startEdit(row: Record<string, any>) {
-    setEditingId(row.id);
-    setEditRow({ ...row });
-  }
+  function startEdit(row: Record<string, any>) { setEditingId(row.id); setEditRow({ ...row }); }
 
   function exportCSV() {
     const headers = columns.map((c) => c.label).join(',');
-    const rows = filtered.map((r) =>
+    const rows = displayData.map((r) =>
       columns.map((c) => {
         const v = r[c.key];
         if (v === null || v === undefined) return '';
@@ -504,26 +527,20 @@ export function DataTableView({
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
-    a.download = `${tableName}.csv`;
-    a.click();
+    a.href = url; a.download = `${tableName}.csv`; a.click();
     URL.revokeObjectURL(url);
   }
 
-  const editableCols = columns.filter((c) => c.editable);
+  const formCols = columns.filter((c) => c.editable !== false);
   const allColsForForm = showProjectFilter
-    ? [{ key: 'project_id', label: 'Project', type: 'text' as const, options: projects.map((p) => p.id) }, ...editableCols]
-    : editableCols;
+    ? [{ key: 'project_id', label: 'Project', type: 'text' as const, options: projects.map((p) => p.id) }, ...formCols]
+    : formCols;
 
   const hasActiveFilters = search || Object.values(filterValues).some((v) => v !== 'all') || projectFilter !== 'all' || dateFrom || dateTo;
+  const numericCols = columns.filter((c) => c.type === 'number' || c.type === 'money');
 
-  function renderFormField(
-    col: ColumnDef,
-    row: Record<string, any>,
-    setRow: (r: Record<string, any>) => void,
-  ) {
-    const isAutoFilled = col.autoFillFrom ? !col.editable : false;
-    const isReadOnly = !col.editable && col.key !== 'project_id';
+  function renderFormField(col: ColumnDef, row: Record<string, any>, setRow: (r: Record<string, any>) => void) {
+    const isReadOnly = col.editable === false && col.key !== 'project_id';
 
     if (col.type === 'boolean') {
       return (
@@ -606,12 +623,8 @@ export function DataTableView({
 
     if (isReadOnly) {
       return (
-        <input
-          type="text"
-          value={row[col.key] ?? ''}
-          readOnly
-          className="w-full text-sm px-3 py-2 border border-neutral-100 rounded-lg bg-neutral-50 text-neutral-500"
-        />
+        <input type="text" value={row[col.key] ?? ''} readOnly
+          className="w-full text-sm px-3 py-2 border border-neutral-100 rounded-lg bg-neutral-50 text-neutral-500" />
       );
     }
 
@@ -653,14 +666,14 @@ export function DataTableView({
     <div className="flex-1 flex flex-col overflow-hidden bg-neutral-50">
       <div className="p-6 max-w-7xl mx-auto w-full flex-1 flex flex-col overflow-hidden animate-fade-in">
         {/* Header */}
-        <div className="mb-5 flex items-start justify-between flex-wrap gap-4">
+        <div className="mb-4 flex items-start justify-between flex-wrap gap-4">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
               <Icon size={20} className="text-primary-600" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-neutral-900">{title}</h2>
-              <p className="text-sm text-neutral-500">{displayData.length} record{displayData.length !== 1 ? 's' : ''}</p>
+              <p className="text-sm text-neutral-500">{displayData.length} record{displayData.length !== 1 ? 's' : ''}{hasActiveFilters ? ` (of ${data.length} total)` : ''}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -684,23 +697,16 @@ export function DataTableView({
         </div>
 
         {/* Filters bar */}
-        <div className="mb-4 flex items-center gap-2 flex-wrap">
+        <div className="mb-3 flex items-center gap-2 flex-wrap">
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 pointer-events-none" />
-            <input
-              type="text"
-              placeholder={`Search ${title.toLowerCase()}...`}
-              value={search}
+            <input type="text" placeholder={`Search ${title.toLowerCase()}...`} value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="text-sm pl-9 pr-3 py-2 border border-neutral-200 rounded-lg w-56 focus:outline-none focus:border-primary-400 bg-white"
-            />
+              className="text-sm pl-9 pr-3 py-2 border border-neutral-200 rounded-lg w-56 focus:outline-none focus:border-primary-400 bg-white" />
           </div>
           {showProjectFilter && (
-            <select
-              value={projectFilter}
-              onChange={(e) => setProjectFilter(e.target.value)}
-              className="text-sm px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400"
-            >
+            <select value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}
+              className="text-sm px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400">
               <option value="all">All Projects</option>
               {projects.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
             </select>
@@ -708,12 +714,9 @@ export function DataTableView({
           {filters?.map((f) => {
             const opts = f.options.length > 0 ? f.options : getDynamicFilterOptions(f.key);
             return (
-              <select
-                key={f.key}
-                value={filterValues[f.key] || 'all'}
+              <select key={f.key} value={filterValues[f.key] || 'all'}
                 onChange={(e) => setFilterValues({ ...filterValues, [f.key]: e.target.value })}
-                className="text-sm px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400"
-              >
+                className="text-sm px-3 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400">
                 <option value="all">All {f.label}</option>
                 {opts.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
               </select>
@@ -722,31 +725,41 @@ export function DataTableView({
           {dateRangeColumn && (
             <div className="flex items-center gap-1.5">
               <Calendar size={14} className="text-neutral-400" />
-              <input
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                className="text-sm px-2 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400"
-                placeholder="From"
-              />
+              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}
+                className="text-sm px-2 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400" />
               <span className="text-xs text-neutral-400">to</span>
-              <input
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                className="text-sm px-2 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400"
-                placeholder="To"
-              />
+              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}
+                className="text-sm px-2 py-2 border border-neutral-200 rounded-lg bg-white focus:outline-none focus:border-primary-400" />
             </div>
           )}
           {hasActiveFilters && (
-            <button
-              onClick={() => { setSearch(''); setFilterValues({}); setProjectFilter('all'); setDateFrom(''); setDateTo(''); }}
-              className="flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-700"
-            >
+            <button onClick={() => { setSearch(''); setFilterValues({}); setProjectFilter('all'); setDateFrom(''); setDateTo(''); }}
+              className="flex items-center gap-1 text-xs text-neutral-500 hover:text-neutral-700">
               <X size={12} /> Clear
             </button>
           )}
+        </div>
+
+        {/* Summary bar — Excel-like status bar with Count, Sum, Average */}
+        <div className="mb-3 flex items-center gap-2 flex-wrap text-xs bg-neutral-100 rounded-lg px-3 py-2">
+          <span className="font-semibold text-neutral-700">Count: <span className="text-primary-600">{displayData.length}</span></span>
+          <span className="text-neutral-300">|</span>
+          {numericCols.map((col) => (
+            <span key={`sum-${col.key}`} className="inline-flex items-center gap-1">
+              <span className="text-neutral-500">Σ {col.label}:</span>
+              <span className="font-semibold text-neutral-800">{col.type === 'money' ? fmtMoney(columnSums[col.key] || 0) : (columnSums[col.key] || 0).toLocaleString()}</span>
+            </span>
+          ))}
+          {displayData.length > 0 && numericCols.length > 0 && <span className="text-neutral-300">|</span>}
+          {displayData.length > 0 && numericCols.map((col) => {
+            const avg = (columnSums[col.key] || 0) / displayData.length;
+            return (
+              <span key={`avg-${col.key}`} className="inline-flex items-center gap-1">
+                <span className="text-neutral-500">Avg {col.label}:</span>
+                <span className="font-semibold text-primary-700">{col.type === 'money' ? fmtMoney(avg) : avg.toFixed(1)}</span>
+              </span>
+            );
+          })}
         </div>
 
         {/* Import result banner */}
@@ -768,60 +781,70 @@ export function DataTableView({
           </div>
         )}
 
+        {/* Table hint */}
+        <p className="text-xs text-neutral-400 mb-2">Click any cell to edit. Press Enter to save, Esc to cancel. Click column headers to sort.</p>
+
         {/* Table */}
-        <div className="flex items-center justify-between mb-2">
-          <p className="text-xs text-neutral-400">Click any cell to edit directly. Use Enter to save, Esc to cancel.</p>
-        </div>
         <div ref={printableRef} className="bg-white rounded-xl border border-neutral-300 shadow-sm overflow-hidden printable-area flex-1 flex flex-col min-h-0">
-          <div className="scrollbar-always flex-1 overflow-auto min-h-0" style={{ overflowX: 'scroll', overflowY: 'auto' }}>
+          <div ref={scrollRef} className="scrollbar-always flex-1 overflow-auto min-h-0" style={{ overflowX: 'scroll', overflowY: 'auto' }}>
             <table className="w-full border-collapse">
               <thead className="sticky top-0 z-10">
                 <tr className="bg-neutral-100">
                   {showProjectFilter && <th className="text-left text-xs font-semibold text-neutral-700 px-2 py-2 border border-neutral-300">Project</th>}
                   {columns.map((col) => (
-                    <th key={col.key} className="text-left text-xs font-semibold text-neutral-700 px-2 py-2 whitespace-nowrap border border-neutral-300" style={col.width ? { width: col.width } : undefined}>
-                      {col.label}
+                    <th key={col.key} onClick={() => toggleSort(col.key)}
+                      className="text-left text-xs font-semibold text-neutral-700 px-2 py-2 whitespace-nowrap border border-neutral-300 cursor-pointer hover:bg-neutral-200 select-none transition-colors"
+                      style={col.width ? { width: col.width } : undefined}>
+                      <div className="flex items-center gap-1">
+                        {col.label}
+                        {sortField === col.key && <span className="text-primary-500">{sortDir === 'asc' ? '↑' : '↓'}</span>}
+                      </div>
                     </th>
                   ))}
                   <th className="text-right text-xs font-semibold text-neutral-700 px-2 py-2 border border-neutral-300 no-print">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {displayData.length === 0 ? (
+                {sortedData.length === 0 ? (
                   <tr>
                     <td colSpan={columns.length + (showProjectFilter ? 2 : 1)} className="text-center text-sm text-neutral-400 py-12">
                       No records found. {data.length === 0 ? 'Click "Add New" to create the first record.' : 'Try adjusting your filters.'}
                     </td>
                   </tr>
                 ) : (
-                  displayData.map((row) => (
-                    <tr key={row.id} className="border-b border-neutral-200">
+                  sortedData.map((row, rowIndex) => (
+                    <tr key={row.id} className={`border-b border-neutral-200 ${rowIndex % 2 === 0 ? 'bg-white' : 'bg-neutral-50/50'}`}>
                       {showProjectFilter && (
                         <td className="px-2 py-1.5 text-sm text-neutral-600 whitespace-nowrap border border-neutral-200">{projectMap[row.project_id] || '—'}</td>
                       )}
-                      {columns.map((col) => (
-                        <ExcelCell
-                          key={col.key}
-                          value={row[col.key]}
-                          col={col}
-                          isActive={inlineEdit?.id === row.id && inlineEdit?.key === col.key}
-                          onClick={() => {
-                            if (col.editable === true && col.key !== 'id' && col.key !== 'created_at') {
-                              startInlineEdit(row.id, col.key, row[col.key]);
-                            }
-                          }}
-                        >
-                          {inlineEdit && inlineEdit.id === row.id && inlineEdit.key === col.key ? (
-                            <InlineCellEditor
-                              col={col}
-                              value={inlineValue}
-                              onCommit={commitInlineEdit}
-                              onCancel={cancelInlineEdit}
-                              projects={projects}
-                            />
-                          ) : undefined}
-                        </ExcelCell>
-                      ))}
+                      {columns.map((col) => {
+                        const isEditing = inlineEdit?.id === row.id && inlineEdit?.key === col.key;
+                        const canEdit = col.editable !== false && col.key !== 'id' && col.key !== 'created_at';
+                        return (
+                          <td
+                            key={col.key}
+                            onClick={() => { if (canEdit) startInlineEdit(row.id, col.key, row[col.key]); }}
+                            className={`px-2 py-1.5 whitespace-nowrap border border-neutral-200 text-sm ${
+                              isEditing ? 'p-0' : ''
+                            } ${
+                              isEditing ? 'bg-primary-50' : canEdit ? 'hover:bg-primary-50/30 cursor-text' : 'bg-neutral-50 cursor-default'
+                            }`}
+                          >
+                            {isEditing ? (
+                              <InlineCellEditor
+                                col={col}
+                                value={inlineValue}
+                                onCommit={commitInlineEdit}
+                                onCancel={cancelInlineEdit}
+                                projects={projects}
+                                autoFillOptions={autoFillOptions?.[col.key]}
+                              />
+                            ) : (
+                              renderCell(row[col.key], col)
+                            )}
+                          </td>
+                        );
+                      })}
                       <td className="px-2 py-1.5 text-right whitespace-nowrap border border-neutral-200 no-print">
                         <div className="flex items-center justify-end gap-1">
                           <button onClick={() => startEdit(row)} className="text-xs text-primary-600 hover:text-primary-700 font-medium px-2 py-1 rounded hover:bg-primary-50 transition-colors">Edit</button>
@@ -832,6 +855,22 @@ export function DataTableView({
                   ))
                 )}
               </tbody>
+              {sortedData.length > 0 && (
+                <tfoot className="sticky bottom-0 z-10">
+                  <tr className="bg-neutral-200/90 backdrop-blur border-t-2 border-neutral-400 font-semibold">
+                    {showProjectFilter && <td className="px-2 py-2 text-xs font-bold text-neutral-700 border border-neutral-300"></td>}
+                    {columns.map((col, ci) => (
+                      <td key={col.key} className="px-2 py-2 text-xs font-bold text-neutral-800 border border-neutral-300 whitespace-nowrap">
+                        {columnSums[col.key] !== undefined
+                          ? (col.type === 'money' ? fmtMoney(columnSums[col.key]) : columnSums[col.key].toLocaleString())
+                          : (ci === 0 ? 'SUM' : '')
+                        }
+                      </td>
+                    ))}
+                    <td className="px-2 py-2 border border-neutral-300 no-print"></td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
         </div>
