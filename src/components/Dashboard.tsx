@@ -1,5 +1,6 @@
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, FolderKanban, CircleCheck as CheckCircle2, TriangleAlert as AlertTriangle, Clock, Package, ShieldAlert, Users, CalendarClock, Signature as FileSignature, ClipboardList, Banknote, Receipt, FileText, GitBranch, FolderOpen, Target, Gauge, Activity, CircleAlert as AlertCircle, CircleArrowRight as ArrowRightCircle, Lightbulb, ChevronDown, Building2, Layers, Zap, ArrowUpRight, ArrowDownRight, Wallet, ChartBar as BarChart3, LayoutDashboard, Search, PackageCheck, Truck, FileCheck as FileCheck2, HeartPulse, CircleDollarSign, ListChecks, Hash } from 'lucide-react';
+import { SCurveChart } from './SCurveChart';
 import type {
   Project, Task, Cost, Procurement, Safety, ProgressEntry, ProjectWithStats, ViewKey,
   Schedule, Contract, BOQItem, CashFlowEntry, SubcontractorInvoice, ClientInvoice,
@@ -286,6 +287,58 @@ export function Dashboard({
       critical: s.critical_path,
       status: s.status,
     }));
+  }, [fSchedules]);
+
+  const sCurve = useMemo(() => {
+    if (fSchedules.length === 0) return [];
+    const sorted = [...fSchedules]
+      .map((s) => ({
+        date: s.start_date || s.end_date || '',
+        end: s.end_date || s.start_date || '',
+        progress: s.progress || 0,
+        duration: s.duration_days || 1,
+      }))
+      .filter((s) => s.date)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    if (sorted.length === 0) return [];
+
+    const projectStart = sorted[0].date;
+    const projectEnd = sorted[sorted.length - 1].end;
+    if (!projectEnd) return [];
+
+    const startMs = new Date(projectStart).getTime();
+    const endMs = new Date(projectEnd).getTime();
+    const totalDays = Math.max(Math.ceil((endMs - startMs) / 86400000), 1);
+    const totalActivities = sorted.length;
+
+    const points: { label: string; planned: number; actual: number; date: string }[] = [];
+    const numPoints = Math.min(totalDays, 30);
+    for (let i = 0; i <= numPoints; i++) {
+      const dayOffset = (i / numPoints) * totalDays;
+      const currentDate = new Date(startMs + dayOffset * 86400000);
+      const dateStr = currentDate.toISOString().slice(0, 10);
+      const elapsedFrac = i / numPoints;
+      const planned = Math.round(elapsedFrac * 100);
+
+      let actual = 0;
+      sorted.forEach((s) => {
+        const sStart = new Date(s.date).getTime();
+        const sEnd = new Date(s.end).getTime();
+        const sDuration = Math.max(Math.ceil((sEnd - sStart) / 86400000), 1);
+        const sProgressFrac = s.progress / 100;
+        const activityEndDay = Math.ceil((sEnd - startMs) / 86400000);
+        if (dayOffset >= activityEndDay) {
+          actual += sProgressFrac * 100;
+        } else if (dayOffset >= Math.ceil((sStart - startMs) / 86400000)) {
+          const withinActivity = (dayOffset - Math.ceil((sStart - startMs) / 86400000)) / sDuration;
+          actual += Math.min(withinActivity, 1) * sProgressFrac * 100;
+        }
+      });
+      actual = totalActivities > 0 ? Math.round((actual / totalActivities) * 100) : 0;
+      points.push({ label: dateStr, planned, actual: Math.min(actual, 100), date: dateStr });
+    }
+    return points;
   }, [fSchedules]);
 
   const projectsWithStats: ProjectWithStats[] = useMemo(() => {
@@ -982,6 +1035,23 @@ export function Dashboard({
               </div>
               <button onClick={() => onNavigate('schedule')} className="w-full mt-4 text-xs text-primary-600 hover:text-primary-700 font-medium">View full schedule →</button>
             </div>
+
+            {/* S-Curve Chart */}
+            {sCurve.length > 0 && (
+              <div className="bg-white rounded-xl border border-neutral-200 p-5 shadow-sm">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <TrendingUp size={16} className="text-primary-600" />
+                    <h3 className="text-sm font-semibold text-neutral-700">Project S-Curve — Planned vs Actual Progress</h3>
+                  </div>
+                  <div className="flex items-center gap-4 text-xs">
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-primary-500" /><span className="text-neutral-600">Planned</span></span>
+                    <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-success-500" /><span className="text-neutral-600">Actual</span></span>
+                  </div>
+                </div>
+                <SCurveChart data={sCurve} />
+              </div>
+            )}
           </div>
         )}
 
@@ -1230,3 +1300,6 @@ export function Dashboard({
     </div>
   );
 }
+
+
+export { Dashboard }

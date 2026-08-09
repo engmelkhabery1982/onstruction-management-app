@@ -111,9 +111,33 @@ export function DataTableView({
     return m;
   }, [projects]);
 
+  function coerceTypes(row: Record<string, any>): Record<string, any> {
+    const out: Record<string, any> = {};
+    for (const [key, val] of Object.entries(row)) {
+      const col = columns.find((c) => c.key === key);
+      if (col) {
+        if (col.type === 'number' || col.type === 'money') {
+          out[key] = val === '' || val === null || val === undefined ? 0 : Number(val);
+        } else if (col.type === 'boolean') {
+          out[key] = val === true || val === 'true';
+        } else if (col.type === 'progress') {
+          const n = Number(val);
+          out[key] = isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
+        } else {
+          out[key] = val;
+        }
+      } else if (key === 'project_id') {
+        out[key] = val;
+      } else {
+        out[key] = val;
+      }
+    }
+    return out;
+  }
+
   async function handleAdd() {
     setSaving(true);
-    const { error } = await supabase.from(tableName).insert([newRow]);
+    const { error } = await supabase.from(tableName).insert([coerceTypes(newRow)]);
     setSaving(false);
     if (error) { alert(`Error: ${error.message}`); return; }
     setShowAdd(false);
@@ -124,7 +148,7 @@ export function DataTableView({
   async function handleEdit() {
     if (!editingId) return;
     setSaving(true);
-    const { error } = await supabase.from(tableName).update(editRow).eq('id', editingId);
+    const { error } = await supabase.from(tableName).update(coerceTypes(editRow)).eq('id', editingId);
     setSaving(false);
     if (error) { alert(`Error: ${error.message}`); return; }
     setEditingId(null);
