@@ -64,6 +64,8 @@ const PROJECT_COLUMNS: ColumnDef[] = [
   { key: 'spent', label: 'Spent', type: 'money' },
   { key: 'total_value', label: 'Total Value', type: 'money' },
   { key: 'progress', label: 'Progress', type: 'progress', editable: true },
+  { key: 'client_contract_type', label: 'Client Contract Type', type: 'text', editable: true, options: CONTRACT_TYPES },
+  { key: 'company_contract_type', label: 'Company Contract Type', type: 'text', editable: true, options: CONTRACT_TYPES },
   { key: 'project_manager', label: 'Manager', type: 'text', editable: true },
   { key: 'contractor', label: 'Contractor', type: 'text', editable: true },
   { key: 'start_date', label: 'Start Date', type: 'date', editable: true },
@@ -170,12 +172,18 @@ const SCHEDULE_COLUMNS: ColumnDef[] = [
 ];
 
 const CONTRACT_COLUMNS: ColumnDef[] = [
+  { key: 'contract_code', label: 'Contract Code', type: 'text', editable: true },
   { key: 'contract_number', label: 'Contract #', type: 'text', editable: true },
   { key: 'title', label: 'Title', type: 'text', editable: true },
+  { key: 'client', label: 'Client', type: 'text', editable: true },
+  { key: 'company', label: 'Company', type: 'text', editable: true },
   { key: 'contractor', label: 'Contractor', type: 'text', editable: true },
+  { key: 'client_contract_type', label: 'Client Contract Type', type: 'text', editable: true, options: CONTRACT_TYPES },
+  { key: 'company_contract_type', label: 'Company Contract Type', type: 'text', editable: true, options: CONTRACT_TYPES },
   { key: 'contract_type', label: 'Type', type: 'status', editable: true, options: CONTRACT_TYPES },
   { key: 'contract_value', label: 'Value', type: 'money', editable: true },
   { key: 'status', label: 'Status', type: 'status', editable: true, options: CONTRACT_STATUSES },
+  { key: 'document_reference', label: 'Document Ref', type: 'text', editable: true },
   { key: 'start_date', label: 'Start', type: 'date', editable: true },
   { key: 'end_date', label: 'End', type: 'date', editable: true },
   { key: 'signed_date', label: 'Signed Date', type: 'date', editable: true },

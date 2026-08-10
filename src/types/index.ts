@@ -14,6 +14,11 @@ export interface Project {
   contractor: string;
   project_code: string;
   boq_code: string;
+  client_contract_type: string;
+  company_contract_type: string;
+  parent_main_project_id: string | null;
+  project_code_locked: boolean;
+  last_modified: string;
   notes: string;
   created_at: string;
 }
@@ -158,6 +163,15 @@ export interface Contract {
   end_date: string | null;
   status: string;
   signed_date: string | null;
+  contract_code: string;
+  client: string;
+  company: string;
+  client_contract_type: string;
+  company_contract_type: string;
+  parent_main_contract_id: string | null;
+  document_reference: string;
+  contract_code_locked: boolean;
+  last_modified: string;
   notes: string;
   created_at: string;
 }
@@ -171,6 +185,9 @@ export interface BOQHeader {
   company_name: string;
   contract_type: string;
   total_value: number;
+  contract_id: string | null;
+  boq_code_locked: boolean;
+  last_modified: string;
   created_at: string;
 }
 
@@ -187,6 +204,9 @@ export interface BOQItem {
   quantity: number;
   unit_rate: number;
   amount: number;
+  boq_header_id: string | null;
+  item_code_locked: boolean;
+  last_modified: string;
   notes: string;
   created_at: string;
 }
@@ -349,6 +369,7 @@ export interface WIREntry {
   unit_price: number;
   item_amount: number;
   completion_pct: number;
+  last_modified: string;
   created_at: string;
 }
 
